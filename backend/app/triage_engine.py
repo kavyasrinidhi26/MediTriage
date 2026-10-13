@@ -140,12 +140,16 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
     if is_emergency:
         category = TriageCategory.EMERGENCY
         urgency_label = "RED - IMMEDIATE CASUALTY ALERT"
+        triage_level = 1 if urgency_score == 10 else 2
+        triage_level_name = "Level 1: Resuscitation" if urgency_score == 10 else "Level 2: Emergent"
         max_wait = 0
         action = "Immediate transfer to Emergency Resuscitation / Casualty Ward without queuing."
         clinical_rationale.append("Patient exhibits critical red-flag symptoms or life-threatening vital sign derangement.")
     elif is_priority:
         category = TriageCategory.PRIORITY
         urgency_label = "YELLOW - URGENT OPD ATTENTION"
+        triage_level = 3
+        triage_level_name = "Level 3: Urgent"
         max_wait = 30
         action = "Fast-track in current OPD specialty queue; reassess vitals every 20-30 minutes."
         clinical_rationale.append("Patient has significant physiological derangement or moderate distress requiring priority clinical review.")
@@ -153,6 +157,8 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
         category = TriageCategory.ROUTINE
         urgency_label = "GREEN - ROUTINE OPD QUEUE"
         urgency_score = 3
+        triage_level = 4 if urgency_score >= 3 else 5
+        triage_level_name = "Level 4: Less Urgent" if urgency_score >= 3 else "Level 5: Non-Urgent"
         max_wait = 120
         action = "Direct to standard OPD consultation queue according to registration token."
         clinical_rationale.append("Vitals are within stable operational parameters with no critical acute red flags detected.")
@@ -168,6 +174,8 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
     return TriageAssessmentResult(
         triage_category=category,
         urgency_level=urgency_label,
+        triage_level=triage_level,
+        triage_level_name=triage_level_name,
         urgency_score=urgency_score,
         recommended_department=department,
         red_flags_identified=red_flags,

@@ -626,9 +626,9 @@ def apply_safety_override(
             clinical_alerts=clinical_alerts,
             original_model_prediction=model_prediction,
             override_applied=False,
-            final_urgency_level="DATA_QUALITY_HOLD",
-            required_verification=f"Data Quality Error: {'; '.join(blocking_msgs)}. Please verify and correct inputs.",
-            escalation_status="DATA_QUALITY_HOLD",
+            final_urgency_level="Cannot assess — send to nurse now.",
+            required_verification=f"Cannot assess — send to nurse now. Data Quality Error: {'; '.join(blocking_msgs)}. Please verify and correct inputs.",
+            escalation_status="Cannot assess — send to nurse now.",
         )
 
     # Check for critical rules that override lower ML predictions

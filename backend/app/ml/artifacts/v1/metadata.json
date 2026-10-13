@@ -1,7 +1,7 @@
 {
   "model_version": "2026.1-triage-ml-v1",
   "schema_version": "2026.1-schema-spec-v1",
-  "created_at": "2026-10-13T14:29:12.870021+00:00",
+  "created_at": "2026-10-13T16:50:08.244489+00:00",
   "random_seed": 99,
   "is_synthetic_training": true,
   "data_source": "Synthetic training fixture (60 samples, seed 99)",
@@ -26,9 +26,9 @@
   "department_label_mapping": {
     "Cardiology": 0,
     "Dermatology": 1,
-    "Emergency / Casualty": 2,
-    "General Medicine": 3,
-    "Obstetrics & Gynecology": 4,
+    "General Medicine": 2,
+    "Obstetrics & Gynecology": 3,
+    "Orthopedics": 4,
     "Pediatrics": 5,
     "Pulmonology": 6
   },
@@ -45,27 +45,39 @@
     "temperature_unit",
     "avpu",
     "chief_complaint",
-    "known_conditions_text"
+    "known_conditions_text",
+    "medications"
   ],
   "splits": {
     "training": {
       "sample_count": 36,
       "triage": {
-        "accuracy": 0.3611,
-        "precision_macro": 0.0722,
+        "accuracy": 0.4722,
+        "precision_macro": 0.0944,
         "recall_macro": 0.2,
-        "f1_macro": 0.1061,
-        "precision_weighted": 0.1304,
-        "recall_weighted": 0.3611,
-        "f1_weighted": 0.1916,
+        "f1_macro": 0.1283,
+        "precision_weighted": 0.223,
+        "recall_weighted": 0.4722,
+        "f1_weighted": 0.3029,
         "emergency_level_analyzed": 1,
-        "emergency_cases_total": 8,
+        "emergency_cases_total": 2,
         "emergency_recall_sensitivity": 0.0,
         "emergency_precision": 0.0,
-        "emergency_false_negatives": 8,
+        "emergency_false_negatives": 2,
+        "asymmetric_clinical_cost": {
+          "total_cost": 57.0,
+          "mean_cost_per_patient": 1.5833,
+          "under_triage_count": 2,
+          "under_triage_cost": 40.0,
+          "over_triage_count": 0,
+          "over_triage_cost": 0.0,
+          "standard_error_count": 17,
+          "under_triage_penalty_multiplier": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        },
         "official_weighted_score": {
           "score": 0.0,
-          "raw_weighted_score": 0.1041,
+          "raw_weighted_score": 0.1329,
           "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
           "weights": {
             "emergency_recall": 0.5,
@@ -85,28 +97,28 @@
         "confusion_matrix": [
           [
             0,
-            8,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            13,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            6,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
             2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            17,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            7,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            3,
             0,
             0,
             0
@@ -124,25 +136,25 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 8
+            "support": 2
           },
           "2": {
-            "precision": 0.3611,
+            "precision": 0.4722,
             "recall": 1.0,
-            "f1-score": 0.5306,
-            "support": 13
+            "f1-score": 0.6415,
+            "support": 17
           },
           "3": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 6
+            "support": 7
           },
           "4": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 2
+            "support": 3
           },
           "5": {
             "precision": 0.0,
@@ -153,15 +165,15 @@
         }
       },
       "department": {
-        "accuracy": 0.4167,
-        "f1_macro": 0.084,
-        "f1_weighted": 0.2451,
+        "accuracy": 0.3611,
+        "f1_macro": 0.0758,
+        "f1_weighted": 0.1916,
         "departments": [
           "Cardiology",
           "Dermatology",
-          "Emergency / Casualty",
           "General Medicine",
           "Obstetrics & Gynecology",
+          "Orthopedics",
           "Pediatrics",
           "Pulmonology"
         ],
@@ -169,62 +181,62 @@
           [
             0,
             0,
-            0,
-            4,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
             2,
             0,
             0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            15,
-            0,
             0,
             0
           ],
           [
-            0,
             0,
             0,
             3,
             0,
             0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            5,
-            0,
             0,
             0
           ],
           [
             0,
+            0,
+            13,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
             0,
             0,
             6,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            6,
+            0,
             0,
             0,
             0
@@ -235,21 +247,32 @@
     "validation": {
       "sample_count": 12,
       "triage": {
-        "accuracy": 0.3333,
-        "precision_macro": 0.0667,
+        "accuracy": 0.5,
+        "precision_macro": 0.1,
         "recall_macro": 0.2,
-        "f1_macro": 0.1,
-        "precision_weighted": 0.1111,
-        "recall_weighted": 0.3333,
-        "f1_weighted": 0.1667,
+        "f1_macro": 0.1333,
+        "precision_weighted": 0.25,
+        "recall_weighted": 0.5,
+        "f1_weighted": 0.3333,
         "emergency_level_analyzed": 1,
-        "emergency_cases_total": 3,
-        "emergency_recall_sensitivity": 0.0,
-        "emergency_precision": 0.0,
-        "emergency_false_negatives": 3,
+        "emergency_cases_total": 0,
+        "emergency_recall_sensitivity": 1.0,
+        "emergency_precision": 1.0,
+        "emergency_false_negatives": 0,
+        "asymmetric_clinical_cost": {
+          "total_cost": 6.0,
+          "mean_cost_per_patient": 0.5,
+          "under_triage_count": 0,
+          "under_triage_cost": 0.0,
+          "over_triage_count": 0,
+          "over_triage_cost": 0.0,
+          "standard_error_count": 6,
+          "under_triage_penalty_multiplier": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        },
         "official_weighted_score": {
-          "score": 0.0,
-          "raw_weighted_score": 0.0967,
+          "score": 0.64,
+          "raw_weighted_score": 0.64,
           "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
           "weights": {
             "emergency_recall": 0.5,
@@ -269,21 +292,21 @@
         "confusion_matrix": [
           [
             0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            6,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
             3,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            4,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            2,
             0,
             0,
             0
@@ -308,19 +331,19 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 3
+            "support": 0
           },
           "2": {
-            "precision": 0.3333,
+            "precision": 0.5,
             "recall": 1.0,
-            "f1-score": 0.5,
-            "support": 4
+            "f1-score": 0.6667,
+            "support": 6
           },
           "3": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 2
+            "support": 3
           },
           "4": {
             "precision": 0.0,
@@ -337,15 +360,15 @@
         }
       },
       "department": {
-        "accuracy": 0.25,
-        "f1_macro": 0.0571,
-        "f1_weighted": 0.1,
+        "accuracy": 0.4167,
+        "f1_macro": 0.084,
+        "f1_weighted": 0.2451,
         "departments": [
           "Cardiology",
           "Dermatology",
-          "Emergency / Casualty",
           "General Medicine",
           "Obstetrics & Gynecology",
+          "Orthopedics",
           "Pediatrics",
           "Pulmonology"
         ],
@@ -353,8 +376,8 @@
           [
             0,
             0,
+            2,
             0,
-            3,
             0,
             0,
             0
@@ -363,33 +386,33 @@
             0,
             0,
             0,
-            1,
+            0,
             0,
             0,
             0
           ],
           [
             0,
+            0,
+            5,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
             0,
             0,
             2,
             0,
             0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            3,
-            0,
             0,
             0
           ],
           [
             0,
             0,
-            0,
+            1,
             0,
             0,
             0,
@@ -397,18 +420,18 @@
           ],
           [
             0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
             0,
             0,
             2,
             0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            1,
             0,
             0,
             0
@@ -427,13 +450,24 @@
         "recall_weighted": 0.3333,
         "f1_weighted": 0.1667,
         "emergency_level_analyzed": 1,
-        "emergency_cases_total": 3,
-        "emergency_recall_sensitivity": 0.0,
-        "emergency_precision": 0.0,
-        "emergency_false_negatives": 3,
+        "emergency_cases_total": 0,
+        "emergency_recall_sensitivity": 1.0,
+        "emergency_precision": 1.0,
+        "emergency_false_negatives": 0,
+        "asymmetric_clinical_cost": {
+          "total_cost": 8.0,
+          "mean_cost_per_patient": 0.6667,
+          "under_triage_count": 0,
+          "under_triage_cost": 0.0,
+          "over_triage_count": 0,
+          "over_triage_cost": 0.0,
+          "standard_error_count": 8,
+          "under_triage_penalty_multiplier": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        },
         "official_weighted_score": {
-          "score": 0.0,
-          "raw_weighted_score": 0.0967,
+          "score": 0.5967,
+          "raw_weighted_score": 0.5967,
           "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
           "weights": {
             "emergency_recall": 0.5,
@@ -453,7 +487,7 @@
         "confusion_matrix": [
           [
             0,
-            3,
+            0,
             0,
             0,
             0
@@ -467,21 +501,21 @@
           ],
           [
             0,
-            2,
+            4,
             0,
             0,
             0
           ],
           [
             0,
-            1,
+            0,
             0,
             0,
             0
           ],
           [
             0,
-            2,
+            4,
             0,
             0,
             0
@@ -492,7 +526,7 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 3
+            "support": 0
           },
           "2": {
             "precision": 0.3333,
@@ -504,32 +538,32 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 2
+            "support": 4
           },
           "4": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 1
+            "support": 0
           },
           "5": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 2
+            "support": 4
           }
         }
       },
       "department": {
-        "accuracy": 0.4167,
-        "f1_macro": 0.084,
-        "f1_weighted": 0.2451,
+        "accuracy": 0.25,
+        "f1_macro": 0.0571,
+        "f1_weighted": 0.1,
         "departments": [
           "Cardiology",
           "Dermatology",
-          "Emergency / Casualty",
           "General Medicine",
           "Obstetrics & Gynecology",
+          "Orthopedics",
           "Pediatrics",
           "Pulmonology"
         ],
@@ -538,61 +572,61 @@
             0,
             0,
             0,
-            2,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
             0,
             0,
             0,
             0
           ],
           [
-            0,
-            0,
-            0,
-            5,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
             0,
             0,
             3,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            3,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            3,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
             0,
             0,
             0
@@ -611,13 +645,24 @@
       "recall_weighted": 0.3333,
       "f1_weighted": 0.1667,
       "emergency_level_analyzed": 1,
-      "emergency_cases_total": 3,
-      "emergency_recall_sensitivity": 0.0,
-      "emergency_precision": 0.0,
-      "emergency_false_negatives": 3,
+      "emergency_cases_total": 0,
+      "emergency_recall_sensitivity": 1.0,
+      "emergency_precision": 1.0,
+      "emergency_false_negatives": 0,
+      "asymmetric_clinical_cost": {
+        "total_cost": 8.0,
+        "mean_cost_per_patient": 0.6667,
+        "under_triage_count": 0,
+        "under_triage_cost": 0.0,
+        "over_triage_count": 0,
+        "over_triage_cost": 0.0,
+        "standard_error_count": 8,
+        "under_triage_penalty_multiplier": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+      },
       "official_weighted_score": {
-        "score": 0.0,
-        "raw_weighted_score": 0.0967,
+        "score": 0.5967,
+        "raw_weighted_score": 0.5967,
         "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
         "weights": {
           "emergency_recall": 0.5,
@@ -637,7 +682,7 @@
       "confusion_matrix": [
         [
           0,
-          3,
+          0,
           0,
           0,
           0
@@ -651,21 +696,21 @@
         ],
         [
           0,
-          2,
+          4,
           0,
           0,
           0
         ],
         [
           0,
-          1,
+          0,
           0,
           0,
           0
         ],
         [
           0,
-          2,
+          4,
           0,
           0,
           0
@@ -676,7 +721,7 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 3
+          "support": 0
         },
         "2": {
           "precision": 0.3333,
@@ -688,32 +733,32 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 4
         },
         "4": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 1
+          "support": 0
         },
         "5": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 4
         }
       }
     },
     "department": {
-      "accuracy": 0.4167,
-      "f1_macro": 0.084,
-      "f1_weighted": 0.2451,
+      "accuracy": 0.25,
+      "f1_macro": 0.0571,
+      "f1_weighted": 0.1,
       "departments": [
         "Cardiology",
         "Dermatology",
-        "Emergency / Casualty",
         "General Medicine",
         "Obstetrics & Gynecology",
+        "Orthopedics",
         "Pediatrics",
         "Pulmonology"
       ],
@@ -722,61 +767,61 @@
           0,
           0,
           0,
-          2,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          1,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
           0,
           0,
           0,
           0
         ],
         [
-          0,
-          0,
-          0,
-          5,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          1,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
           0,
           0,
           3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
           0,
           0,
           0
@@ -784,21 +829,32 @@
       ]
     },
     "train": {
-      "accuracy": 0.3611,
-      "precision_macro": 0.0722,
+      "accuracy": 0.4722,
+      "precision_macro": 0.0944,
       "recall_macro": 0.2,
-      "f1_macro": 0.1061,
-      "precision_weighted": 0.1304,
-      "recall_weighted": 0.3611,
-      "f1_weighted": 0.1916,
+      "f1_macro": 0.1283,
+      "precision_weighted": 0.223,
+      "recall_weighted": 0.4722,
+      "f1_weighted": 0.3029,
       "emergency_level_analyzed": 1,
-      "emergency_cases_total": 8,
+      "emergency_cases_total": 2,
       "emergency_recall_sensitivity": 0.0,
       "emergency_precision": 0.0,
-      "emergency_false_negatives": 8,
+      "emergency_false_negatives": 2,
+      "asymmetric_clinical_cost": {
+        "total_cost": 57.0,
+        "mean_cost_per_patient": 1.5833,
+        "under_triage_count": 2,
+        "under_triage_cost": 40.0,
+        "over_triage_count": 0,
+        "over_triage_cost": 0.0,
+        "standard_error_count": 17,
+        "under_triage_penalty_multiplier": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+      },
       "official_weighted_score": {
         "score": 0.0,
-        "raw_weighted_score": 0.1041,
+        "raw_weighted_score": 0.1329,
         "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
         "weights": {
           "emergency_recall": 0.5,
@@ -818,28 +874,28 @@
       "confusion_matrix": [
         [
           0,
-          8,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          13,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          6,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
           2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          17,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          7,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
           0,
           0,
           0
@@ -857,25 +913,25 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 8
+          "support": 2
         },
         "2": {
-          "precision": 0.3611,
+          "precision": 0.4722,
           "recall": 1.0,
-          "f1-score": 0.5306,
-          "support": 13
+          "f1-score": 0.6415,
+          "support": 17
         },
         "3": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 6
+          "support": 7
         },
         "4": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 3
         },
         "5": {
           "precision": 0.0,
@@ -886,21 +942,32 @@
       }
     },
     "validation": {
-      "accuracy": 0.3333,
-      "precision_macro": 0.0667,
+      "accuracy": 0.5,
+      "precision_macro": 0.1,
       "recall_macro": 0.2,
-      "f1_macro": 0.1,
-      "precision_weighted": 0.1111,
-      "recall_weighted": 0.3333,
-      "f1_weighted": 0.1667,
+      "f1_macro": 0.1333,
+      "precision_weighted": 0.25,
+      "recall_weighted": 0.5,
+      "f1_weighted": 0.3333,
       "emergency_level_analyzed": 1,
-      "emergency_cases_total": 3,
-      "emergency_recall_sensitivity": 0.0,
-      "emergency_precision": 0.0,
-      "emergency_false_negatives": 3,
+      "emergency_cases_total": 0,
+      "emergency_recall_sensitivity": 1.0,
+      "emergency_precision": 1.0,
+      "emergency_false_negatives": 0,
+      "asymmetric_clinical_cost": {
+        "total_cost": 6.0,
+        "mean_cost_per_patient": 0.5,
+        "under_triage_count": 0,
+        "under_triage_cost": 0.0,
+        "over_triage_count": 0,
+        "over_triage_cost": 0.0,
+        "standard_error_count": 6,
+        "under_triage_penalty_multiplier": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+      },
       "official_weighted_score": {
-        "score": 0.0,
-        "raw_weighted_score": 0.0967,
+        "score": 0.64,
+        "raw_weighted_score": 0.64,
         "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
         "weights": {
           "emergency_recall": 0.5,
@@ -920,21 +987,21 @@
       "confusion_matrix": [
         [
           0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          6,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
           3,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          4,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          2,
           0,
           0,
           0
@@ -959,19 +1026,19 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 3
+          "support": 0
         },
         "2": {
-          "precision": 0.3333,
+          "precision": 0.5,
           "recall": 1.0,
-          "f1-score": 0.5,
-          "support": 4
+          "f1-score": 0.6667,
+          "support": 6
         },
         "3": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 3
         },
         "4": {
           "precision": 0.0,
@@ -996,13 +1063,24 @@
       "recall_weighted": 0.3333,
       "f1_weighted": 0.1667,
       "emergency_level_analyzed": 1,
-      "emergency_cases_total": 3,
-      "emergency_recall_sensitivity": 0.0,
-      "emergency_precision": 0.0,
-      "emergency_false_negatives": 3,
+      "emergency_cases_total": 0,
+      "emergency_recall_sensitivity": 1.0,
+      "emergency_precision": 1.0,
+      "emergency_false_negatives": 0,
+      "asymmetric_clinical_cost": {
+        "total_cost": 8.0,
+        "mean_cost_per_patient": 0.6667,
+        "under_triage_count": 0,
+        "under_triage_cost": 0.0,
+        "over_triage_count": 0,
+        "over_triage_cost": 0.0,
+        "standard_error_count": 8,
+        "under_triage_penalty_multiplier": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+      },
       "official_weighted_score": {
-        "score": 0.0,
-        "raw_weighted_score": 0.0967,
+        "score": 0.5967,
+        "raw_weighted_score": 0.5967,
         "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
         "weights": {
           "emergency_recall": 0.5,
@@ -1022,7 +1100,7 @@
       "confusion_matrix": [
         [
           0,
-          3,
+          0,
           0,
           0,
           0
@@ -1036,21 +1114,21 @@
         ],
         [
           0,
-          2,
+          4,
           0,
           0,
           0
         ],
         [
           0,
-          1,
+          0,
           0,
           0,
           0
         ],
         [
           0,
-          2,
+          4,
           0,
           0,
           0
@@ -1061,7 +1139,7 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 3
+          "support": 0
         },
         "2": {
           "precision": 0.3333,
@@ -1073,19 +1151,19 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 4
         },
         "4": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 1
+          "support": 0
         },
         "5": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 4
         }
       }
     }

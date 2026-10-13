@@ -77,6 +77,7 @@ class TriageInferenceService:
         chief_complaint: str,
         complaint_language: str = "English",
         known_conditions: Optional[List[str]] = None,
+        medications: Optional[Any] = None,
         systolic_bp: Optional[int] = None,
         diastolic_bp: Optional[int] = None,
         pulse_bpm: Optional[int] = None,
@@ -140,14 +141,14 @@ class TriageInferenceService:
         model_version = self.metadata.get("model_version", "unavailable") if self.metadata else "unavailable"
         rules_version = SAFETY_RULE_VERSION
 
-        # Step 3: Handle Blocking Data Errors -> ABSTAIN with human review
+        # Step 3: Handle Blocking Data Errors -> Explicit Abstention to Nurse
         if has_blocking_data_error:
             return {
                 "triage_level": 2,  # Priority holding status: never placed at end of queue
-                "triage_level_name": "Priority Holding (Data Error)",
+                "triage_level_name": "Cannot assess — send to nurse now.",
                 "recommended_department": "General Medicine",
                 "detected_red_flags": red_flag_symptoms,
-                "model_explanation": "Model execution held: Input data contains contradictory or out-of-range measurements requiring verification.",
+                "model_explanation": "Model execution held: Input data contains contradictory or out-of-range measurements requiring immediate nurse verification.",
                 "triggered_safety_rule_ids": [i.code for i in dq_issues if i.is_blocking],
                 "safety_rule_explanations": [i.message for i in dq_issues if i.is_blocking],
                 "missing_data_warnings": missing_warnings,
@@ -157,7 +158,7 @@ class TriageInferenceService:
                 "model_version": model_version,
                 "rules_version": rules_version,
                 "model_emergency_flag": False,
-                "clinical_disclaimer": "Safety protocol active: Data quality hold requires manual nurse verification.",
+                "clinical_disclaimer": "Cannot assess — send to nurse now. Safety protocol active: Data quality hold requires manual nurse verification.",
             }
 
         # Step 4: Check if Model Artifacts are Available
@@ -187,11 +188,14 @@ class TriageInferenceService:
         if temperature is not None and temperature_unit.upper() == "C":
             temp_f = round((temperature * 9.0 / 5.0) + 32.0, 1)
 
+        med_text = ", ".join(medications) if isinstance(medications, list) else (str(medications) if medications else "")
+
         input_df = pd.DataFrame([{
             "age": age,
             "gender": gender,
             "chief_complaint": chief_complaint,
             "known_conditions_text": ", ".join(known_conditions) if known_conditions else "",
+            "medications": med_text,
             "systolic_bp": systolic_bp,
             "diastolic_bp": diastolic_bp,
             "pulse_bpm": pulse_bpm,
@@ -238,13 +242,13 @@ class TriageInferenceService:
             fallback_name = TRIAGE_5_TO_NAME.get(fallback_level, f"Level {fallback_level}")
             return {
                 "triage_level": fallback_level,
-                "triage_level_name": f"{fallback_name} (Model Exception)",
+                "triage_level_name": f"{fallback_name} (Model Exception)" if has_critical_clinical_rule else "Cannot assess — send to nurse now.",
                 "recommended_department": "Emergency / Casualty" if fallback_level == 1 else "General Medicine",
                 "detected_red_flags": red_flag_symptoms,
                 "model_explanation": (
                     f"🚨 CRITICAL OVERRIDE: Emergency rule triggered during model exception ({str(e)}). Immediate emergency casualty triage assigned."
                     if has_critical_clinical_rule
-                    else f"Model inference error: {str(e)}. Patient held for clinician triage review."
+                    else f"Model inference error: {str(e)}. Cannot assess — send to nurse now."
                 ),
                 "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts],
                 "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts],
@@ -255,7 +259,7 @@ class TriageInferenceService:
                 "model_version": model_version,
                 "rules_version": rules_version,
                 "model_emergency_flag": False,
-                "clinical_disclaimer": "Inference failed safely; manual clinical assessment required.",
+                "clinical_disclaimer": "Cannot assess — send to nurse now. Inference failed safely; manual clinical assessment required.",
             }
 
         # Step 6 & 7: Apply Approved Clinical Escalation Policy and Handle Model Confidence
@@ -268,15 +272,16 @@ class TriageInferenceService:
             abstention_status = "SAFETY_OVERRIDE"
             pred_dept = "Emergency / Casualty"
             human_review = True
+            model_emerg_flag = True
             explanation = "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag triggered. Overrode machine-learning recommendation to Level 1 / Emergency."
         elif pred_confidence < confidence_threshold:
-            # Uncertain model without critical emergency rule: Abstain to Priority holding (never Routine / end of queue)
+            # Uncertain model without critical emergency rule: Abstain to Nurse (never Routine / end of queue)
             return {
                 "triage_level": 2,
-                "triage_level_name": "Priority Review (Low Model Confidence)",
+                "triage_level_name": "Cannot assess — send to nurse now.",
                 "recommended_department": pred_dept,
                 "detected_red_flags": red_flag_symptoms,
-                "model_explanation": f"Model prediction confidence ({pred_confidence:.2f}) fell below safe decision threshold ({confidence_threshold}). Escalated to clinician review.",
+                "model_explanation": f"Model prediction confidence ({pred_confidence:.2f}) fell below safe decision threshold ({confidence_threshold}). Explicit abstention triggered: send to nurse now.",
                 "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts],
                 "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts],
                 "missing_data_warnings": missing_warnings,
@@ -286,7 +291,7 @@ class TriageInferenceService:
                 "model_version": model_version,
                 "rules_version": rules_version,
                 "model_emergency_flag": model_emerg_flag,
-                "clinical_disclaimer": "Model confidence insufficient. Clinician evaluation mandatory.",
+                "clinical_disclaimer": "Cannot assess — send to nurse now. Model confidence insufficient. Clinician evaluation mandatory.",
             }
         elif has_priority_rule and raw_ml_level > 2:
             override_applied = True

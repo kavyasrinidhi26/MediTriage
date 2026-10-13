@@ -61,6 +61,7 @@ CATEGORICAL_FEATURE_COLUMNS = [
 TEXT_FEATURE_COLUMNS = [
     "chief_complaint",
     "known_conditions_text",
+    "medications",
 ]
 
 # FORBIDDEN FEATURES (Data Leakage & Post-Outcome Fields)

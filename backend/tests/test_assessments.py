@@ -265,7 +265,11 @@ def test_assessment_abstention_never_places_at_end_of_queue():
     data_dq = res_dq.json()
     assert data_dq["abstention_status"].startswith("ABSTAINED_")
     assert data_dq["triage_level"] <= 2
-    assert "Holding" in data_dq["triage_level_name"] or "Priority" in data_dq["triage_level_name"]
+    assert (
+        "Cannot assess — send to nurse now." in data_dq["triage_level_name"]
+        or "Holding" in data_dq["triage_level_name"]
+        or "Priority" in data_dq["triage_level_name"]
+    )
 
 
 def test_assessment_never_fabricates_confidence_percentage():
@@ -290,4 +294,55 @@ def test_assessment_never_fabricates_confidence_percentage():
     assert "% model confidence" not in data["model_explanation"]
     assert "confidence_score" not in data
     assert "confidence_percentage" not in data
+
+
+def test_assessment_latency_under_60_seconds():
+    """
+    Requirement 10: Measured assessment latency of 60 seconds or less.
+    Verifies that end-to-end inference and safety validation completes well within 60s (typically < 0.5s).
+    """
+    import time
+
+    payload = {
+        "age": 45,
+        "gender": "Male",
+        "chief_complaint": "Acute onset retrosternal crushing chest pain radiating to left jaw with cold sweats",
+        "systolic_bp": 92,
+        "diastolic_bp": 58,
+        "pulse_bpm": 118,
+        "temperature": 98.4,
+        "temperature_unit": "F",
+        "spo2": 91.0,
+    }
+
+    start_time = time.perf_counter()
+    response = client.post("/api/assessments", json=payload)
+    duration = time.perf_counter() - start_time
+
+    assert response.status_code == 200
+    # Must strictly satisfy Requirement 10 (latency <= 60 seconds)
+    assert duration < 60.0
+    # Strict internal SLA benchmark (< 2.0 seconds)
+    assert duration < 2.0
+
+
+def test_explicit_abstention_nurse_phrase():
+    """
+    Requirement 9: Explicit abstention phrasing 'Cannot assess — send to nurse now.'
+    When data quality issues or low confidence prevent reliable assessment, the engine must
+    issue the required clinical abstention directive.
+    """
+    payload = {
+        "age": 30,
+        "gender": "Female",
+        "chief_complaint": "Patient walking and eating snack",
+        "pulse_bpm": 0,  # Contradiction: Pulseless alert ambulatory patient
+    }
+
+    response = client.post("/api/assessments", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["triage_level_name"] == "Cannot assess — send to nurse now."
+    assert "Cannot assess — send to nurse now." in data["clinical_disclaimer"]
 

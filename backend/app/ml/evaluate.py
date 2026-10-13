@@ -76,6 +76,13 @@ def compute_triage_metrics(
         pred_pos_count = int(np.sum(y_pred == emergency_level))
         emergency_precision = 1.0 if pred_pos_count == 0 else 0.0
 
+    asymmetric_cost = compute_asymmetric_clinical_cost(
+        y_true=y_true,
+        y_pred=y_pred,
+        emergency_level=emergency_level,
+        under_triage_penalty=20.0,
+    )
+
     official_score = compute_official_weighted_score(
         emergency_recall=emergency_recall,
         macro_f1=f1_macro,
@@ -96,10 +103,78 @@ def compute_triage_metrics(
         "emergency_recall_sensitivity": round(emergency_recall, 4),
         "emergency_precision": round(emergency_precision, 4),
         "emergency_false_negatives": emergency_false_negatives,
+        "asymmetric_clinical_cost": asymmetric_cost,
         "official_weighted_score": official_score,
         "labels": [int(l) for l in labels],
         "confusion_matrix": cm,
         "per_class_metrics": per_class_metrics,
+    }
+
+
+def compute_asymmetric_clinical_cost(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    emergency_level: int = 1,
+    under_triage_penalty: float = 20.0,
+    over_triage_penalty: float = 1.0,
+    standard_error_penalty: float = 1.0,
+) -> Dict[str, Any]:
+    """
+    Computes asymmetric clinical evaluation cost where under-triaging a true emergency
+    (predicting non-emergency when true status is emergency) incurs an explicit 20x penalty
+    relative to routine misclassifications or over-triage false positives.
+
+    Cost Matrix:
+    - True Emergency classified as Non-Emergency: 20x penalty (clinical risk of harm)
+    - Non-Emergency classified as Emergency: 1x penalty (resource cost / precautionary)
+    - Routine class mismatch (e.g., Level 2 vs Level 3): 1x penalty
+    - Correct classification: 0 penalty
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    n = len(y_true)
+    if n == 0:
+        return {
+            "total_cost": 0.0,
+            "mean_cost_per_patient": 0.0,
+            "under_triage_count": 0,
+            "over_triage_count": 0,
+            "standard_error_count": 0,
+            "under_triage_penalty_multiplier": under_triage_penalty,
+        }
+
+    costs = np.zeros(n, dtype=float)
+
+    is_true_emerg = (y_true == emergency_level)
+    is_pred_emerg = (y_pred == emergency_level)
+
+    # 1. Critical under-triage: True emergency predicted as non-emergency
+    under_triage_mask = is_true_emerg & (~is_pred_emerg)
+    costs[under_triage_mask] = under_triage_penalty
+
+    # 2. Over-triage: Non-emergency predicted as emergency
+    over_triage_mask = (~is_true_emerg) & is_pred_emerg
+    costs[over_triage_mask] = over_triage_penalty
+
+    # 3. Standard misclassification among non-emergency classes
+    other_misclass_mask = (~is_true_emerg) & (~is_pred_emerg) & (y_true != y_pred)
+    costs[other_misclass_mask] = standard_error_penalty
+
+    total_cost = float(np.sum(costs))
+    under_triage_count = int(np.sum(under_triage_mask))
+    over_triage_count = int(np.sum(over_triage_mask))
+    standard_error_count = int(np.sum(other_misclass_mask))
+
+    return {
+        "total_cost": round(total_cost, 2),
+        "mean_cost_per_patient": round(total_cost / n, 4),
+        "under_triage_count": under_triage_count,
+        "under_triage_cost": round(under_triage_count * under_triage_penalty, 2),
+        "over_triage_count": over_triage_count,
+        "over_triage_cost": round(over_triage_count * over_triage_penalty, 2),
+        "standard_error_count": standard_error_count,
+        "under_triage_penalty_multiplier": under_triage_penalty,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
     }
 
 

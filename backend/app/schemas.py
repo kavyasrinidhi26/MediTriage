@@ -77,6 +77,8 @@ class PatientTriageRequest(BaseModel):
 class TriageAssessmentResult(BaseModel):
     triage_category: TriageCategory
     urgency_level: str
+    triage_level: Optional[int] = Field(None, ge=1, le=5, description="5-level clinical triage acuity (1=Resuscitation, 2=Emergent, 3=Urgent, 4=Less Urgent, 5=Non-Urgent)")
+    triage_level_name: Optional[str] = Field(None, description="5-level triage acuity name")
     urgency_score: int = Field(..., ge=1, le=10, description="Urgency priority score (10 = highest immediate threat, 1 = routine)")
     recommended_department: SpecialtyDepartment
     red_flags_identified: List[str]

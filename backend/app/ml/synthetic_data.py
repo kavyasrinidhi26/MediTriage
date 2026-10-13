@@ -68,77 +68,116 @@ KNOWN_CONDITIONS_POOL = [
     "None / Unknown",
 ]
 
+COMMON_MEDICATIONS_POOL = [
+    "Metformin 500mg BD, Amlodipine 5mg OD",
+    "Paracetamol 650mg SOS",
+    "Salbutamol Inhaler PRN, Budesonide 200mcg",
+    "Telmisartan 40mg, Atorvastatin 10mg",
+    "Omeprazole 20mg OD",
+    "Levothyroxine 50mcg",
+    "Insulin Glargine 10 units HS",
+    "None / Not on regular medications",
+]
+
 
 def generate_synthetic_fixture(
     n_samples: int = 150,
     random_seed: int = 42,
     triage_levels: int = 5,
+    emergency_prevalence: float = 0.04,
 ) -> pd.DataFrame:
     """
-    Generates a synthetic DataFrame fixture matching the schema for pipeline testing.
+    Generates a synthetic DataFrame fixture matching the schema for pipeline testing and training.
     All data is generated deterministically with the specified random seed.
+    Calibrates emergency prevalence to approximately 4% (clinical OPD baseline).
     """
     rng = np.random.default_rng(random_seed)
     random.seed(random_seed)
 
+    emergency_complaints = [c for c in SAMPLE_COMPLAINTS if c[2] == 1]
+    non_emergency_complaints = [c for c in SAMPLE_COMPLAINTS if c[2] > 1]
+
     records: List[Dict[str, Any]] = []
 
     for i in range(n_samples):
-        complaint_tuple = random.choice(SAMPLE_COMPLAINTS)
-        complaint_text, default_dept, level_5, default_is_emerg = complaint_tuple
+        # Calibrated ~4% emergency prevalence (problem statement baseline)
+        is_emerg_draw = bool(rng.random() < emergency_prevalence)
+        if is_emerg_draw and emergency_complaints:
+            complaint_tuple = random.choice(emergency_complaints)
+            level_5 = 1
+        else:
+            complaint_tuple = random.choice(non_emergency_complaints)
+            level_5 = complaint_tuple[2]  # Acuity levels 2, 3, 4, 5
+
+        complaint_text, default_dept, _, _ = complaint_tuple
 
         age = int(rng.integers(1, 85))
         gender = random.choice(["Male", "Female", "Other"])
         temp_unit = "F" if random.random() < 0.85 else "C"
 
-        # Baseline vitals correlated loosely with urgency
-        if level_5 <= 2:
-            pulse = int(rng.choice([0, rng.integers(115, 160), rng.integers(35, 48)]))
-            sys_bp = int(rng.integers(70, 95)) if random.random() < 0.4 else int(rng.integers(160, 210))
-            dia_bp = int(sys_bp * rng.uniform(0.55, 0.70))
-            spo2 = float(rng.uniform(82.0, 93.0))
-            temp_f = float(rng.choice([96.0, rng.uniform(102.0, 104.5)]))
-            avpu = random.choice(["ALERT", "VERBAL", "PAIN", "UNRESPONSIVE"])
+        # Baseline vitals correlated with acuity
+        if level_5 == 1:
+            pulse = int(rng.choice([0, rng.integers(135, 175), rng.integers(30, 42)]))
+            sys_bp = int(rng.integers(65, 88)) if random.random() < 0.6 else int(rng.integers(205, 240))
+            dia_bp = int(sys_bp * rng.uniform(0.50, 0.65))
+            spo2 = float(rng.uniform(75.0, 89.0))
+            temp_f = float(rng.choice([96.0, rng.uniform(104.0, 105.5)]))
+            avpu = random.choice(["PAIN", "UNRESPONSIVE", "VERBAL", "ALERT"])
+        elif level_5 == 2:
+            pulse = int(rng.integers(105, 130))
+            sys_bp = int(rng.integers(150, 185)) if random.random() < 0.5 else int(rng.integers(90, 105))
+            dia_bp = int(sys_bp * rng.uniform(0.58, 0.72))
+            spo2 = float(rng.uniform(90.0, 94.0))
+            temp_f = float(rng.uniform(100.5, 103.5))
+            avpu = random.choice(["ALERT", "VERBAL"])
+        elif level_5 == 3:
+            pulse = int(rng.integers(75, 102))
+            sys_bp = int(rng.integers(118, 145))
+            dia_bp = int(rng.integers(74, 92))
+            spo2 = float(rng.uniform(94.0, 97.0))
+            temp_f = float(rng.uniform(98.6, 100.4))
+            avpu = "ALERT"
         else:
-            pulse = int(rng.integers(60, 98))
-            sys_bp = int(rng.integers(110, 138))
-            dia_bp = int(rng.integers(68, 88))
-            spo2 = float(rng.uniform(95.0, 99.5))
-            temp_f = float(rng.uniform(97.8, 99.2))
+            pulse = int(rng.integers(62, 88))
+            sys_bp = int(rng.integers(110, 130))
+            dia_bp = int(rng.integers(68, 84))
+            spo2 = float(rng.uniform(97.0, 99.5))
+            temp_f = float(rng.uniform(97.8, 98.8))
             avpu = "ALERT"
 
         # Convert temperature if unit is Celsius
         temp = temp_f if temp_unit == "F" else round((temp_f - 32.0) * 5.0 / 9.0, 1)
 
-        # Introduce realistic missingness in ~10% of records
-        if random.random() < 0.10:
+        # Introduce realistic missingness in ~8% of records
+        if random.random() < 0.08:
             sys_bp = None
             dia_bp = None
-        if random.random() < 0.08:
+        if random.random() < 0.06:
             pulse = None
-        if random.random() < 0.12:
+        if random.random() < 0.08:
             spo2 = None
-        if random.random() < 0.10:
+        if random.random() < 0.06:
             temp = None
 
         cond_sample = random.sample(KNOWN_CONDITIONS_POOL, k=random.randint(0, 2))
         conditions_text = ", ".join(cond_sample) if cond_sample else ""
+        medications_text = random.choice(COMMON_MEDICATIONS_POOL)
 
-        # Target triage level
+        # Target triage level and calibrated ground-truth emergency flag (~4%)
         if triage_levels == 3:
-            # Map 1-2 -> 1 (Emergency), 3 -> 2 (Priority), 4-5 -> 3 (Routine)
-            t_level = 1 if level_5 <= 2 else (2 if level_5 == 3 else 3)
+            t_level = 1 if is_emerg_draw else (2 if level_5 <= 3 else 3)
         else:
-            t_level = level_5
+            t_level = 1 if is_emerg_draw else level_5
 
-        is_emergency = 1 if t_level in (1, 2) or default_is_emerg else 0
+        is_emergency = 1 if is_emerg_draw else 0
 
         record = {
-            # Features
+            # Features (all required intake dimensions)
             "age": age,
             "gender": gender,
             "chief_complaint": complaint_text,
             "known_conditions_text": conditions_text,
+            "medications": medications_text,
             "systolic_bp": sys_bp,
             "diastolic_bp": dia_bp,
             "pulse_bpm": pulse,
@@ -152,10 +191,19 @@ def generate_synthetic_fixture(
             "triage_level": t_level,
             "department": default_dept,
             "is_emergency": is_emergency,
-            # Non-feature identifiers (to test feature sanitizer)
-            "patient_id": f"SYN-PT-{1000 + i}",
+            # Non-feature identifiers
+            "patient_id": f"SYN-PT-{10000 + i}",
             "patient_name": f"Synthetic Patient {i}",
         }
         records.append(record)
 
     return pd.DataFrame(records)
+
+
+def generate_and_save_dataset_30k(output_csv_path: str, random_seed: int = 42) -> pd.DataFrame:
+    """Generates 30,000 synthetic patient records with ~4% emergency prevalence and saves to disk."""
+    import os
+    os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
+    df = generate_synthetic_fixture(n_samples=30000, random_seed=random_seed, emergency_prevalence=0.04)
+    df.to_csv(output_csv_path, index=False)
+    return df

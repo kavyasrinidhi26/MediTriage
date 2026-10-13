@@ -40,13 +40,68 @@ class TextColumnExtractor(BaseEstimator, TransformerMixin):
         return series.tolist()
 
 
-def build_preprocessor() -> ColumnTransformer:
+class MissingColumnFiller(BaseEstimator, TransformerMixin):
+    """Ensures all expected feature columns exist in the DataFrame before ColumnTransformer."""
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        if not isinstance(X, pd.DataFrame):
+            return X
+        X = X.copy()
+        for col in NUMERICAL_FEATURE_COLUMNS:
+            if col not in X.columns:
+                X[col] = np.nan
+        for col in CATEGORICAL_FEATURE_COLUMNS:
+            if col not in X.columns:
+                X[col] = "missing"
+        for col in ["chief_complaint", "known_conditions_text", "medications"]:
+            if col not in X.columns:
+                X[col] = ""
+        return X
+
+
+class SafeCountVectorizer(CountVectorizer):
+    """CountVectorizer that handles empty text input during fit without crashing."""
+    def fit(self, raw_documents, y=None):
+        docs = list(raw_documents)
+        if not any(d and str(d).strip() for d in docs):
+            docs = ["none"]
+        return super().fit(docs, y)
+
+    def fit_transform(self, raw_documents, y=None):
+        docs = list(raw_documents)
+        if not any(d and str(d).strip() for d in docs):
+            super().fit(["none"], y)
+            return super().transform(raw_documents)
+        return super().fit_transform(raw_documents, y)
+
+
+class SafeTfidfVectorizer(TfidfVectorizer):
+    """TfidfVectorizer that handles empty text input during fit without crashing."""
+    def fit(self, raw_documents, y=None):
+        docs = list(raw_documents)
+        if not any(d and str(d).strip() for d in docs):
+            docs = ["none"]
+        return super().fit(docs, y)
+
+    def fit_transform(self, raw_documents, y=None):
+        docs = list(raw_documents)
+        if not any(d and str(d).strip() for d in docs):
+            super().fit(["none"], y)
+            return super().transform(raw_documents)
+        return super().fit_transform(raw_documents, y)
+
+
+def build_preprocessor() -> Pipeline:
     """
-    Constructs a ColumnTransformer that operates cleanly on raw input DataFrames.
+    Constructs a Pipeline that operates cleanly on raw input DataFrames.
+    - Missing column filler: Ensures all feature columns are present.
     - Numeric features: Imputed with median and missing-indicator + scaled.
     - Categorical features: Imputed + OneHotEncoded.
     - Text complaint: TF-IDF vectorization with n-grams.
     - Known conditions: CountVectorizer boolean indicator.
+    - Medications: CountVectorizer boolean indicator.
     """
     numeric_pipe = Pipeline([
         ("imputer", SimpleImputer(strategy="median", add_indicator=True)),
@@ -60,28 +115,36 @@ def build_preprocessor() -> ColumnTransformer:
 
     complaint_pipe = Pipeline([
         ("extractor", TextColumnExtractor("chief_complaint")),
-        ("tfidf", TfidfVectorizer(max_features=80, ngram_range=(1, 2), token_pattern=r"(?u)\S+")),
+        ("tfidf", SafeTfidfVectorizer(max_features=80, ngram_range=(1, 2), token_pattern=r"(?u)\S+")),
     ])
 
     conditions_pipe = Pipeline([
         ("extractor", TextColumnExtractor("known_conditions_text")),
-        ("count", CountVectorizer(max_features=25, binary=True)),
+        ("count", SafeCountVectorizer(max_features=25, binary=True)),
     ])
 
-    preprocessor = ColumnTransformer(
+    medications_pipe = Pipeline([
+        ("extractor", TextColumnExtractor("medications")),
+        ("count", SafeCountVectorizer(max_features=25, binary=True)),
+    ])
+
+    col_trans = ColumnTransformer(
         transformers=[
             ("num", numeric_pipe, NUMERICAL_FEATURE_COLUMNS),
             ("cat", categorical_pipe, CATEGORICAL_FEATURE_COLUMNS),
             ("complaint", complaint_pipe, ["chief_complaint"]),
             ("conditions", conditions_pipe, ["known_conditions_text"]),
+            ("medications", medications_pipe, ["medications"]),
         ],
         remainder="drop",
         sparse_threshold=0,
         verbose_feature_names_out=True,
     )
 
-
-    return preprocessor
+    return Pipeline([
+        ("filler", MissingColumnFiller()),
+        ("transformer", col_trans),
+    ])
 
 
 def prepare_features_and_targets(
@@ -123,8 +186,10 @@ def prepare_features_and_targets(
         clean_df["chief_complaint"] = ""
     if "known_conditions_text" not in clean_df.columns:
         clean_df["known_conditions_text"] = ""
+    if "medications" not in clean_df.columns:
+        clean_df["medications"] = ""
 
-    X = clean_df[NUMERICAL_FEATURE_COLUMNS + CATEGORICAL_FEATURE_COLUMNS + ["chief_complaint", "known_conditions_text"]]
+    X = clean_df[NUMERICAL_FEATURE_COLUMNS + CATEGORICAL_FEATURE_COLUMNS + ["chief_complaint", "known_conditions_text", "medications"]]
     y = clean_df[target_col] if target_col in clean_df.columns else None
 
     return X, y
