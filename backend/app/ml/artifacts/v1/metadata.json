@@ -1,0 +1,1094 @@
+{
+  "model_version": "2026.1-triage-ml-v1",
+  "schema_version": "2026.1-schema-spec-v1",
+  "created_at": "2026-10-13T14:29:12.870021+00:00",
+  "random_seed": 99,
+  "is_synthetic_training": true,
+  "data_source": "Synthetic training fixture (60 samples, seed 99)",
+  "training_samples_total": 60,
+  "train_samples": 36,
+  "val_samples": 12,
+  "test_samples": 12,
+  "split_counts": {
+    "training": 36,
+    "validation": 12,
+    "test": 12
+  },
+  "triage_classifier_type": "HistGradientBoostingClassifier",
+  "triage_label_mapping": {
+    "1": 0,
+    "2": 1,
+    "3": 2,
+    "4": 3,
+    "5": 4
+  },
+  "department_supported": true,
+  "department_label_mapping": {
+    "Cardiology": 0,
+    "Dermatology": 1,
+    "Emergency / Casualty": 2,
+    "General Medicine": 3,
+    "Obstetrics & Gynecology": 4,
+    "Pediatrics": 5,
+    "Pulmonology": 6
+  },
+  "emergency_flag_supported": true,
+  "features_list": [
+    "age",
+    "systolic_bp",
+    "diastolic_bp",
+    "pulse_bpm",
+    "temperature_f",
+    "spo2",
+    "respiratory_rate",
+    "gender",
+    "temperature_unit",
+    "avpu",
+    "chief_complaint",
+    "known_conditions_text"
+  ],
+  "splits": {
+    "training": {
+      "sample_count": 36,
+      "triage": {
+        "accuracy": 0.3611,
+        "precision_macro": 0.0722,
+        "recall_macro": 0.2,
+        "f1_macro": 0.1061,
+        "precision_weighted": 0.1304,
+        "recall_weighted": 0.3611,
+        "f1_weighted": 0.1916,
+        "emergency_level_analyzed": 1,
+        "emergency_cases_total": 8,
+        "emergency_recall_sensitivity": 0.0,
+        "emergency_precision": 0.0,
+        "emergency_false_negatives": 8,
+        "official_weighted_score": {
+          "score": 0.0,
+          "raw_weighted_score": 0.1041,
+          "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+          "weights": {
+            "emergency_recall": 0.5,
+            "macro_f1": 0.3,
+            "accuracy": 0.2,
+            "emergency_fn_penalty_per_case": 0.1
+          },
+          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        },
+        "labels": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            8,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            13,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            6,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            7,
+            0,
+            0,
+            0
+          ]
+        ],
+        "per_class_metrics": {
+          "1": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 8
+          },
+          "2": {
+            "precision": 0.3611,
+            "recall": 1.0,
+            "f1-score": 0.5306,
+            "support": 13
+          },
+          "3": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 6
+          },
+          "4": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          },
+          "5": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 7
+          }
+        }
+      },
+      "department": {
+        "accuracy": 0.4167,
+        "f1_macro": 0.084,
+        "f1_weighted": 0.2451,
+        "departments": [
+          "Cardiology",
+          "Dermatology",
+          "Emergency / Casualty",
+          "General Medicine",
+          "Obstetrics & Gynecology",
+          "Pediatrics",
+          "Pulmonology"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            15,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            6,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "validation": {
+      "sample_count": 12,
+      "triage": {
+        "accuracy": 0.3333,
+        "precision_macro": 0.0667,
+        "recall_macro": 0.2,
+        "f1_macro": 0.1,
+        "precision_weighted": 0.1111,
+        "recall_weighted": 0.3333,
+        "f1_weighted": 0.1667,
+        "emergency_level_analyzed": 1,
+        "emergency_cases_total": 3,
+        "emergency_recall_sensitivity": 0.0,
+        "emergency_precision": 0.0,
+        "emergency_false_negatives": 3,
+        "official_weighted_score": {
+          "score": 0.0,
+          "raw_weighted_score": 0.0967,
+          "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+          "weights": {
+            "emergency_recall": 0.5,
+            "macro_f1": 0.3,
+            "accuracy": 0.2,
+            "emergency_fn_penalty_per_case": 0.1
+          },
+          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        },
+        "labels": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ]
+        ],
+        "per_class_metrics": {
+          "1": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 3
+          },
+          "2": {
+            "precision": 0.3333,
+            "recall": 1.0,
+            "f1-score": 0.5,
+            "support": 4
+          },
+          "3": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          },
+          "4": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 1
+          },
+          "5": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          }
+        }
+      },
+      "department": {
+        "accuracy": 0.25,
+        "f1_macro": 0.0571,
+        "f1_weighted": 0.1,
+        "departments": [
+          "Cardiology",
+          "Dermatology",
+          "Emergency / Casualty",
+          "General Medicine",
+          "Obstetrics & Gynecology",
+          "Pediatrics",
+          "Pulmonology"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "test": {
+      "sample_count": 12,
+      "triage": {
+        "accuracy": 0.3333,
+        "precision_macro": 0.0667,
+        "recall_macro": 0.2,
+        "f1_macro": 0.1,
+        "precision_weighted": 0.1111,
+        "recall_weighted": 0.3333,
+        "f1_weighted": 0.1667,
+        "emergency_level_analyzed": 1,
+        "emergency_cases_total": 3,
+        "emergency_recall_sensitivity": 0.0,
+        "emergency_precision": 0.0,
+        "emergency_false_negatives": 3,
+        "official_weighted_score": {
+          "score": 0.0,
+          "raw_weighted_score": 0.0967,
+          "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+          "weights": {
+            "emergency_recall": 0.5,
+            "macro_f1": 0.3,
+            "accuracy": 0.2,
+            "emergency_fn_penalty_per_case": 0.1
+          },
+          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        },
+        "labels": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            3,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ]
+        ],
+        "per_class_metrics": {
+          "1": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 3
+          },
+          "2": {
+            "precision": 0.3333,
+            "recall": 1.0,
+            "f1-score": 0.5,
+            "support": 4
+          },
+          "3": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          },
+          "4": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 1
+          },
+          "5": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          }
+        }
+      },
+      "department": {
+        "accuracy": 0.4167,
+        "f1_macro": 0.084,
+        "f1_weighted": 0.2451,
+        "departments": [
+          "Cardiology",
+          "Dermatology",
+          "Emergency / Casualty",
+          "General Medicine",
+          "Obstetrics & Gynecology",
+          "Pediatrics",
+          "Pulmonology"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    }
+  },
+  "evaluation_metrics": {
+    "triage": {
+      "accuracy": 0.3333,
+      "precision_macro": 0.0667,
+      "recall_macro": 0.2,
+      "f1_macro": 0.1,
+      "precision_weighted": 0.1111,
+      "recall_weighted": 0.3333,
+      "f1_weighted": 0.1667,
+      "emergency_level_analyzed": 1,
+      "emergency_cases_total": 3,
+      "emergency_recall_sensitivity": 0.0,
+      "emergency_precision": 0.0,
+      "emergency_false_negatives": 3,
+      "official_weighted_score": {
+        "score": 0.0,
+        "raw_weighted_score": 0.0967,
+        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "weights": {
+          "emergency_recall": 0.5,
+          "macro_f1": 0.3,
+          "accuracy": 0.2,
+          "emergency_fn_penalty_per_case": 0.1
+        },
+        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+      },
+      "labels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          3,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ]
+      ],
+      "per_class_metrics": {
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 3
+        },
+        "2": {
+          "precision": 0.3333,
+          "recall": 1.0,
+          "f1-score": 0.5,
+          "support": 4
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        },
+        "4": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 1
+        },
+        "5": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        }
+      }
+    },
+    "department": {
+      "accuracy": 0.4167,
+      "f1_macro": 0.084,
+      "f1_weighted": 0.2451,
+      "departments": [
+        "Cardiology",
+        "Dermatology",
+        "Emergency / Casualty",
+        "General Medicine",
+        "Obstetrics & Gynecology",
+        "Pediatrics",
+        "Pulmonology"
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    "train": {
+      "accuracy": 0.3611,
+      "precision_macro": 0.0722,
+      "recall_macro": 0.2,
+      "f1_macro": 0.1061,
+      "precision_weighted": 0.1304,
+      "recall_weighted": 0.3611,
+      "f1_weighted": 0.1916,
+      "emergency_level_analyzed": 1,
+      "emergency_cases_total": 8,
+      "emergency_recall_sensitivity": 0.0,
+      "emergency_precision": 0.0,
+      "emergency_false_negatives": 8,
+      "official_weighted_score": {
+        "score": 0.0,
+        "raw_weighted_score": 0.1041,
+        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "weights": {
+          "emergency_recall": 0.5,
+          "macro_f1": 0.3,
+          "accuracy": 0.2,
+          "emergency_fn_penalty_per_case": 0.1
+        },
+        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+      },
+      "labels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          8,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          13,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          6,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          7,
+          0,
+          0,
+          0
+        ]
+      ],
+      "per_class_metrics": {
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 8
+        },
+        "2": {
+          "precision": 0.3611,
+          "recall": 1.0,
+          "f1-score": 0.5306,
+          "support": 13
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 6
+        },
+        "4": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        },
+        "5": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 7
+        }
+      }
+    },
+    "validation": {
+      "accuracy": 0.3333,
+      "precision_macro": 0.0667,
+      "recall_macro": 0.2,
+      "f1_macro": 0.1,
+      "precision_weighted": 0.1111,
+      "recall_weighted": 0.3333,
+      "f1_weighted": 0.1667,
+      "emergency_level_analyzed": 1,
+      "emergency_cases_total": 3,
+      "emergency_recall_sensitivity": 0.0,
+      "emergency_precision": 0.0,
+      "emergency_false_negatives": 3,
+      "official_weighted_score": {
+        "score": 0.0,
+        "raw_weighted_score": 0.0967,
+        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "weights": {
+          "emergency_recall": 0.5,
+          "macro_f1": 0.3,
+          "accuracy": 0.2,
+          "emergency_fn_penalty_per_case": 0.1
+        },
+        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+      },
+      "labels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          3,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ]
+      ],
+      "per_class_metrics": {
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 3
+        },
+        "2": {
+          "precision": 0.3333,
+          "recall": 1.0,
+          "f1-score": 0.5,
+          "support": 4
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        },
+        "4": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 1
+        },
+        "5": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        }
+      }
+    },
+    "test": {
+      "accuracy": 0.3333,
+      "precision_macro": 0.0667,
+      "recall_macro": 0.2,
+      "f1_macro": 0.1,
+      "precision_weighted": 0.1111,
+      "recall_weighted": 0.3333,
+      "f1_weighted": 0.1667,
+      "emergency_level_analyzed": 1,
+      "emergency_cases_total": 3,
+      "emergency_recall_sensitivity": 0.0,
+      "emergency_precision": 0.0,
+      "emergency_false_negatives": 3,
+      "official_weighted_score": {
+        "score": 0.0,
+        "raw_weighted_score": 0.0967,
+        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "weights": {
+          "emergency_recall": 0.5,
+          "macro_f1": 0.3,
+          "accuracy": 0.2,
+          "emergency_fn_penalty_per_case": 0.1
+        },
+        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+      },
+      "labels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          3,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ]
+      ],
+      "per_class_metrics": {
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 3
+        },
+        "2": {
+          "precision": 0.3333,
+          "recall": 1.0,
+          "f1-score": 0.5,
+          "support": 4
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        },
+        "4": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 1
+        },
+        "5": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        }
+      }
+    }
+  },
+  "disclaimer": "HACKATHON PROTOCOL NOTICE: This machine-learning model is trained on synthetic fixtures / prototype records for decision support demonstration only. It is not approved as an independent clinical diagnostic device."
+}
