@@ -437,25 +437,34 @@ export const ModelEvaluationPage: React.FC = () => {
               </div>
               <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#991b1b', lineHeight: 1.1 }}>
                 {triage?.is_emergency_set_empty
-                  ? 'N/A'
+                  ? 'Insufficient data'
                   : triage?.emergency_recall_sensitivity !== undefined && triage?.emergency_recall_sensitivity !== null
                   ? `${(triage.emergency_recall_sensitivity * 100).toFixed(1)}%`
-                  : 'N/A'}
+                  : 'Insufficient data'}
               </div>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#b91c1c', marginTop: '0.35rem' }}>
-                {triage?.emergency_recall_display ||
-                  (triage?.emergency_recall_numerator !== undefined && triage?.emergency_cases_total !== undefined
-                    ? `${triage.emergency_recall_numerator} / ${triage.emergency_cases_total} (${(
-                        (triage.emergency_recall_sensitivity || 0) * 100
-                      ).toFixed(1)}%)`
-                    : '')}
+                {triage?.is_emergency_set_empty
+                  ? 'No labelled emergency cases in this split'
+                  : triage?.emergency_recall_display ||
+                    (triage?.emergency_recall_numerator !== undefined && triage?.emergency_cases_total !== undefined
+                      ? `${triage.emergency_recall_numerator} / ${triage.emergency_cases_total} (${(
+                          (triage.emergency_recall_sensitivity || 0) * 100
+                        ).toFixed(1)}%)`
+                      : 'Insufficient data')}
               </div>
               <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
-                Numerator: detected emergencies &bull; Denominator: true emergencies
+                {triage?.emergency_cases_total !== undefined
+                  ? `Genuine Emergencies: ${triage.emergency_cases_total} | Detected: ${triage.emergency_recall_numerator ?? 0}`
+                  : 'Numerator: detected emergencies • Denominator: true emergencies'}
               </p>
+              {triage && (triage.emergency_false_negatives ?? 0) > 0 && (
+                <div style={{ marginTop: '0.5rem', background: '#fef2f2', border: '1px solid #fecaca', padding: '0.35rem 0.5rem', borderRadius: '4px', color: '#991b1b', fontSize: '0.75rem', fontWeight: 600 }}>
+                  ⚠️ Warning: {triage.emergency_false_negatives} genuine emergencies missed in this evaluation split!
+                </div>
+              )}
             </div>
 
-            {/* 2. Emergency False Negatives */}
+            {/* 2. Emergency False Negatives (Missed Emergencies) */}
             <div
               className="kpi-card"
               style={{
@@ -467,7 +476,7 @@ export const ModelEvaluationPage: React.FC = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
-                  Emergency False Negatives
+                  Missed Emergencies (FN)
                 </span>
                 {triage?.emergency_false_negatives === 0 ? (
                   <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
@@ -487,12 +496,12 @@ export const ModelEvaluationPage: React.FC = () => {
               </div>
               <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
                 {triage?.emergency_false_negatives === 0
-                  ? '0 missed emergencies in this split'
-                  : 'Actual emergency classified as non-emergency!'}
+                  ? '0 missed emergencies (All true emergencies flagged)'
+                  : `${triage?.emergency_false_negatives} true emergency cases failed escalation`}
               </p>
             </div>
 
-            {/* 3. Emergency Precision */}
+            {/* 3. False Positives & Over-Triage */}
             <div
               className="kpi-card"
               style={{
@@ -502,24 +511,37 @@ export const ModelEvaluationPage: React.FC = () => {
                 padding: '1.25rem',
               }}
             >
-              <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
-                  Emergency Precision
+                  Over-Triage & False Positives
+                </span>
+                <span
+                  style={{
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  FP: {triage?.emergency_false_positives ?? (triage?.asymmetric_clinical_cost?.over_triage_count ?? 0)}
                 </span>
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>
-                {triage?.emergency_precision !== undefined && triage?.emergency_precision !== null
-                  ? `${(triage.emergency_precision * 100).toFixed(1)}%`
-                  : triage?.per_class_metrics?.['1']?.precision !== undefined
-                  ? `${(triage.per_class_metrics['1'].precision * 100).toFixed(1)}%`
-                  : 'N/A'}
+              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>
+                {triage?.over_triage_display ||
+                  (triage?.emergency_false_positives !== undefined && triage?.non_emergency_cases_total !== undefined
+                    ? `${triage.emergency_false_positives} / ${triage.non_emergency_cases_total} (${((triage.over_triage_rate || 0) * 100).toFixed(1)}%)`
+                    : triage?.emergency_precision !== undefined && triage?.emergency_precision !== null
+                    ? `Prec: ${(triage.emergency_precision * 100).toFixed(1)}%`
+                    : 'N/A')}
               </div>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
-                Patients flagged as Level 1 who genuinely required emergency care
+              <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
+                Non-emergency cases incorrectly escalated as Level 1 emergencies
               </p>
             </div>
 
-            {/* 4. Official Weighted Score */}
+            {/* 4. Challenge Score Status */}
             <div
               className="kpi-card"
               style={{
@@ -531,19 +553,19 @@ export const ModelEvaluationPage: React.FC = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>
-                  Official Clinical Score
+                  Challenge Score Status
                 </span>
                 <HelpCircle size={15} style={{ color: '#64748b' }} />
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0369a1', lineHeight: 1.1 }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0369a1', lineHeight: 1.2 }}>
                 {data.official_weighted_score?.score !== undefined
-                  ? data.official_weighted_score.score.toFixed(4)
+                  ? `${data.official_weighted_score.score.toFixed(4)}*`
                   : triage?.official_weighted_score?.score !== undefined
-                  ? triage.official_weighted_score.score.toFixed(4)
-                  : 'N/A'}
+                  ? `${triage.official_weighted_score.score.toFixed(4)}*`
+                  : 'Unverified'}
               </div>
-              <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
-                Weighted formula: 50% Recall + 30% F1 + 20% Acc
+              <p style={{ fontSize: '0.74rem', color: '#64748b', margin: '0.3rem 0 0 0' }}>
+                *Official evaluate.py not supplied; score follows documented domain primer formula.
               </p>
             </div>
 
@@ -688,9 +710,16 @@ export const ModelEvaluationPage: React.FC = () => {
                 const abst = triage?.abstention_metrics || data.abstention_metrics;
                 return abst ? (
                   <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <div style={{ background: '#eff6ff', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
-                        <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Abstention Count</div>
+                        <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Definitive ML Cases</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e40af' }}>
+                          {abst.definitive_cases_count ?? (sampleCount - abst.abstention_count)}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#3b82f6' }}>Definitive predictions</div>
+                      </div>
+                      <div style={{ background: '#eff6ff', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Referred to Nurse</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e40af' }}>
                           {abst.abstention_count}
                         </div>
@@ -701,15 +730,24 @@ export const ModelEvaluationPage: React.FC = () => {
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
                           {abst.autonomous_emergency_recall !== null ? `${(abst.autonomous_emergency_recall * 100).toFixed(1)}%` : 'N/A'}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Excludes abstentions</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          {abst.autonomous_emergency_recall_display || 'Excludes nurse holds'}
+                        </div>
                       </div>
                       <div style={{ background: '#eff6ff', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
                         <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Workflow Safety Rate</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#15803d' }}>
                           {abst.workflow_safety_rate_with_nurse_review !== null ? `${(abst.workflow_safety_rate_with_nurse_review * 100).toFixed(1)}%` : 'N/A'}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#15803d' }}>With nurse safety review</div>
+                        <div style={{ fontSize: '0.7rem', color: '#15803d' }}>With bedside nurse review</div>
                       </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: '#475569', marginBottom: '0.5rem', background: '#f8fafc', padding: '0.4rem 0.75rem', borderRadius: '4px' }}>
+                      <span><strong>Abstained Emergencies:</strong> {abst.emergencies_in_abstained_count ?? 0}</span>
+                      <span>&bull;</span>
+                      <span><strong>Abstained Routine:</strong> {abst.non_emergencies_in_abstained_count ?? (abst.abstention_count - (abst.emergencies_in_abstained_count ?? 0))}</span>
+                      <span>&bull;</span>
+                      <span><strong>Total Evaluated:</strong> {abst.total_cases ?? sampleCount}</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#1e40af', background: '#eff6ff', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
                       <strong>Clinical Invariant:</strong> Abstention cases are prioritized for rapid nurse intake &bull; Never placed at end of queue &bull; Never counted as autonomous ML Level 1 predictions.

@@ -26,6 +26,10 @@ export interface SummaryCardMetrics extends DashboardSummaryMetrics {
   emergency_cases?: number;
   priority_cases?: number;
   routine_cases?: number;
+  emergency_count?: number;
+  priority_count?: number;
+  routine_count?: number;
+  waiting_count?: number;
 }
 
 export interface DepartmentSummaryItem {
@@ -40,6 +44,8 @@ interface SummaryCardsProps {
   activeFilter?: string;
   onCardClick?: (filterType: string) => void;
   isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export const SummaryCards: React.FC<SummaryCardsProps> = ({
@@ -48,16 +54,17 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
   activeFilter,
   onCardClick,
   isLoading = false,
+  error = null,
+  onRetry,
 }) => {
   const shouldReduceMotion = useReducedMotion();
-  const emergencyCount = metrics.emergency_cases ?? metrics.high_priority_cases;
-  const priorityCount = metrics.priority_cases ?? Math.max(0, metrics.high_priority_cases - (metrics.emergency_cases ?? 0));
-  const routineCount = metrics.routine_cases ?? Math.max(0, metrics.total_patients - (metrics.high_priority_cases ?? 0));
+  const emergencyCount = metrics.emergency_cases ?? metrics.emergency_count ?? 0;
+  const priorityCount = metrics.priority_cases ?? metrics.priority_count ?? 0;
+  const routineCount = metrics.routine_cases ?? metrics.routine_count ?? 0;
 
-  const patientsTodayCount = metrics.patients_today ?? metrics.total_patients;
-  const totalRegisteredCount = metrics.total_registered_patients ?? metrics.total_patients;
-  const currentlyWaitingCount = metrics.currently_waiting ?? metrics.awaiting_review_cases;
-  const activeEmergenciesCount = metrics.active_emergency_cases ?? emergencyCount;
+  const patientsTodayCount = metrics.patients_today ?? 0;
+  const totalRegisteredCount = metrics.total_registered_patients ?? metrics.total_patients ?? 0;
+  const currentlyWaitingCount = metrics.currently_waiting ?? metrics.waiting_count ?? 0;
 
   // Canonical Specialty Departments with icons
   const defaultDepartmentConfig: Array<{ name: string; icon: any }> = [
@@ -86,6 +93,17 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
 
   const cards = [
     {
+      id: 'all',
+      title: 'Total Patients',
+      value: totalRegisteredCount,
+      subtext: 'Unique registered patients in database',
+      icon: Users,
+      cardClass: 'metric-card-review',
+      badgeText: 'Database Total',
+      badgeClass: 'metric-badge-review',
+      spotlightColor: 'rgba(139, 92, 246, 0.16)',
+    },
+    {
       id: 'today',
       title: 'Patients Today',
       value: patientsTodayCount,
@@ -95,17 +113,6 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
       badgeText: 'Calendar Day',
       badgeClass: 'metric-badge-total',
       spotlightColor: 'rgba(13, 148, 136, 0.16)',
-    },
-    {
-      id: 'all',
-      title: 'Total Patients',
-      value: totalRegisteredCount,
-      subtext: 'All outpatient records stored in database',
-      icon: Users,
-      cardClass: 'metric-card-review',
-      badgeText: 'Database Total',
-      badgeClass: 'metric-badge-review',
-      spotlightColor: 'rgba(139, 92, 246, 0.16)',
     },
     {
       id: 'WAITING',
@@ -121,8 +128,8 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
     {
       id: 'EMERGENCY',
       title: 'Critical Patients',
-      value: activeEmergenciesCount,
-      subtext: `${metrics.today_emergency_cases ?? 0} today • ${metrics.total_recorded_emergency_cases ?? 0} total recorded`,
+      value: emergencyCount,
+      subtext: 'Level 1 immediate resuscitation & emergency',
       icon: AlertTriangle,
       cardClass: 'metric-card-priority',
       badgeText: 'Level 1 • Critical',
@@ -131,7 +138,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
     },
     {
       id: 'PRIORITY',
-      title: 'Priority Cases',
+      title: 'Priority Patients',
       value: priorityCount,
       subtext: 'Level 2 urgent clinical evaluation',
       icon: Clock,
@@ -177,6 +184,47 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
 
   return (
     <div className="summary-cards-wrapper">
+      {error && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            marginBottom: '14px',
+            borderRadius: '8px',
+            background: 'var(--emergency-bg, #fef2f2)',
+            border: '1px solid var(--emergency-border, #fecaca)',
+            color: 'var(--emergency-red-dark, #991b1b)',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <span>Database communication notice: {error}</span>
+          </div>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              style={{
+                background: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '4px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
       <motion.div
         className="summary-cards-grid"
         variants={containerVariants}

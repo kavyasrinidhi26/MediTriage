@@ -4,6 +4,7 @@ import type {
   PatientQueueItem,
   TriageAssessmentResult,
   AssessmentResultData,
+  ExtractedSymptom,
 } from '../types/triage.ts';
 
 import { validateIntakeForm, toFahrenheit } from './intakeValidation.ts';
@@ -320,6 +321,215 @@ export async function requestPatientAssessment(
   return generateFallbackAssessment(data);
 }
 
+interface ClientNLPResult {
+  detected_language: string;
+  extracted_symptoms: ExtractedSymptom[];
+  positive_concepts: string[];
+  negated_concepts: string[];
+  uncertain_concepts: string[];
+  original_complaint: string;
+  requires_complaint_review: boolean;
+  complaint_review_reason: string | null;
+  has_acute_chest_pain: boolean;
+}
+
+export function parseClientComplaint(text: string): ClientNLPResult {
+  const raw = text || '';
+  const lower = raw.toLowerCase().trim();
+  const hasTeluguScript = /[\u0C00-\u0C7F]/.test(raw);
+  const wordsLatin = lower.match(/[a-z]+/g) || [];
+
+  const teluguTranslitMarkers = [
+    'naaku', 'naku', 'chaathilo', 'chathilo', 'chaathi', 'chathi', 'chaati', 'gunde', 'gundelo',
+    'noppi', 'noppiga', 'aayasam', 'ayasam', 'jwaram', 'chali', 'talanoppi', 'thala', 'kadupu',
+    'undi', 'undhi', 'ledu', 'ledhu'
+  ];
+  const englishMarkers = [
+    'chest', 'pain', 'pains', 'fever', 'body', 'cough', 'breathless', 'headache', 'severe',
+    'denies', 'no', 'not', 'dont', 'have', 'fatigue', 'weakness'
+  ];
+
+  let detected_language = 'English';
+  const hasTe = wordsLatin.some((w) => teluguTranslitMarkers.includes(w));
+  const hasEn = wordsLatin.some((w) => englishMarkers.includes(w));
+
+  if (hasTeluguScript) {
+    detected_language = wordsLatin.length > 0 ? 'Mixed (Telugu & English)' : 'Telugu Script';
+  } else if (hasTe && hasEn) {
+    detected_language = 'Mixed (Telugu & English)';
+  } else if (hasTe) {
+    detected_language = 'Telugu Transliteration';
+  } else if (hasEn) {
+    detected_language = 'English';
+  } else if (raw.trim().length === 0 || wordsLatin.length === 0) {
+    detected_language = 'Ambiguous / Unsupported';
+  }
+
+  const extracted: ExtractedSymptom[] = [];
+  const positive: string[] = [];
+  const negated: string[] = [];
+  const uncertain: string[] = [];
+
+  // Chest pain detection with negation
+  const hasChestPainTerms =
+    lower.includes('chest pain') ||
+    lower.includes('chaathilo noppi') ||
+    lower.includes('chaatilo noppi') ||
+    lower.includes('chathilo noppi') ||
+    lower.includes('gundelo noppi') ||
+    raw.includes('ఛాతిలో నొప్పి') ||
+    raw.includes('ఛాతీలో నొప్పి');
+
+  const isChestPainNegated =
+    lower.includes('no chest pain') ||
+    lower.includes("don't have chest pain") ||
+    lower.includes('dont have chest pain') ||
+    lower.includes('denies chest pain') ||
+    lower.includes('gunde noppi ledu') ||
+    lower.includes('chaathilo noppi ledu') ||
+    raw.includes('ఛాతిలో నొప్పి లేదు');
+
+  let has_acute_chest_pain = false;
+  const hasPositiveChestPainMention =
+    lower.includes('have severe chest pain') ||
+    lower.includes('have chest pain') ||
+    lower.includes('has chest pain') ||
+    (hasChestPainTerms && !isChestPainNegated);
+
+  if (hasPositiveChestPainMention && isChestPainNegated) {
+    // Both positive and negated mentions present in complaint -> Contradiction!
+    positive.push('chest_pain');
+    negated.push('chest_pain');
+    extracted.push({
+      concept: 'chest_pain',
+      context: 'positive',
+      matched_text: 'chest pain',
+      supporting_phrase: 'chest pain',
+      is_red_flag: true,
+    });
+    extracted.push({
+      concept: 'chest_pain',
+      context: 'negated',
+      matched_text: 'chest pain',
+      supporting_phrase: 'no chest pain',
+      is_red_flag: false,
+    });
+  } else if (hasChestPainTerms) {
+    if (isChestPainNegated) {
+      extracted.push({
+        concept: 'chest_pain',
+        context: 'negated',
+        matched_text: 'chest pain',
+        supporting_phrase: 'no chest pain',
+        is_red_flag: false,
+      });
+      negated.push('chest_pain');
+    } else {
+      extracted.push({
+        concept: 'chest_pain',
+        context: 'positive',
+        matched_text: 'chest pain',
+        supporting_phrase: raw,
+        severity_modifier: lower.includes('severe') ? 'severe' : null,
+        is_red_flag: true,
+      });
+      positive.push('chest_pain');
+      has_acute_chest_pain = true;
+    }
+  }
+
+  // Fever detection
+  const hasFeverTerms = lower.includes('fever') || lower.includes('jwaram') || raw.includes('జ్వరం');
+  const isFeverNegated =
+    lower.includes('no fever') ||
+    lower.includes("don't have fever") ||
+    lower.includes('jwaram ledu') ||
+    raw.includes('జ్వరం లేదు');
+  const hasPositiveFeverMention =
+    lower.includes('have fever') ||
+    lower.includes('high fever') ||
+    (hasFeverTerms && !isFeverNegated);
+
+  if (hasPositiveFeverMention && isFeverNegated) {
+    positive.push('fever');
+    negated.push('fever');
+    extracted.push({
+      concept: 'fever',
+      context: 'positive',
+      matched_text: 'fever',
+      supporting_phrase: 'fever',
+      is_red_flag: false,
+    });
+    extracted.push({
+      concept: 'fever',
+      context: 'negated',
+      matched_text: 'fever',
+      supporting_phrase: 'no fever',
+      is_red_flag: false,
+    });
+  } else if (hasFeverTerms) {
+    if (isFeverNegated) {
+      extracted.push({
+        concept: 'fever',
+        context: 'negated',
+        matched_text: 'fever',
+        supporting_phrase: 'no fever',
+        is_red_flag: false,
+      });
+      negated.push('fever');
+    } else {
+      extracted.push({
+        concept: 'fever',
+        context: 'positive',
+        matched_text: 'fever',
+        supporting_phrase: 'fever',
+        is_red_flag: false,
+      });
+      positive.push('fever');
+    }
+  }
+
+  // Body pain / joint bone pain
+  if (lower.includes('body pain') || lower.includes('body pains') || lower.includes('ollu noppulu')) {
+    extracted.push({
+      concept: 'joint_bone_pain',
+      context: 'positive',
+      matched_text: 'body pains',
+      supporting_phrase: 'body pains',
+      is_red_flag: false,
+    });
+    positive.push('joint_bone_pain');
+  }
+
+  // Contradiction detection
+  const contradictions = positive.filter((c) => negated.includes(c));
+  let requires_complaint_review = false;
+  let complaint_review_reason: string | null = null;
+
+  if (!raw.trim()) {
+    requires_complaint_review = true;
+    complaint_review_reason = 'Empty presenting complaint; Cannot assess safely — send to nurse now.';
+  } else if (contradictions.length > 0) {
+    requires_complaint_review = true;
+    complaint_review_reason = `Contradictory clinical statements detected for symptom (${contradictions.join(', ')}); Cannot assess safely — send to nurse now.`;
+  } else if (detected_language === 'Ambiguous / Unsupported') {
+    requires_complaint_review = true;
+    complaint_review_reason = 'Unsupported language format or ambiguous complaint text; Cannot assess safely — send to nurse now.';
+  }
+
+  return {
+    detected_language,
+    extracted_symptoms: extracted,
+    positive_concepts: positive,
+    negated_concepts: negated,
+    uncertain_concepts: uncertain,
+    original_complaint: raw,
+    requires_complaint_review,
+    complaint_review_reason,
+    has_acute_chest_pain,
+  };
+}
+
 /**
  * Generates a deterministic clinical safety fallback assessment when the backend model is offline.
  */
@@ -329,10 +539,12 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
   const missingWarnings = validation.missingMeasurements.map((m) => `${m.label}: ${m.explanation}`);
   const invalidWarnings = Object.entries(validation.errors).map(([k, v]) => `${k}: ${v}`);
 
+  const clientNLP = parseClientComplaint(data.chief_complaint || '');
+
   const hasPulseZero = data.pulse_bpm === 0;
   const hasCriticalHypoxia = data.spo2 !== null && data.spo2 < 90;
   const hasCriticalShock = data.systolic_bp !== null && data.systolic_bp < 90;
-  const isCritical = hasPulseZero || hasCriticalHypoxia || hasCriticalShock;
+  const isCritical = hasPulseZero || hasCriticalHypoxia || hasCriticalShock || clientNLP.has_acute_chest_pain;
 
   const triggeredIds: string[] = [];
   const triggeredExpls: string[] = [];
@@ -349,8 +561,26 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
     triggeredIds.push('CRIT-RULE-SHOCK-BP');
     triggeredExpls.push(`Severe hypotension: Systolic BP is ${data.systolic_bp} mmHg (< 90 mmHg shock threshold).`);
   }
+  if (clientNLP.has_acute_chest_pain) {
+    triggeredIds.push('CRIT-RULE-NLP-CHEST-PAIN');
+    triggeredExpls.push('Acute cardiac chest pain symptoms identified in chief complaint. Urgent ECG and cardiac evaluation mandated.');
+  }
 
   const redFlags = alerts.map((a) => a.message);
+  if (clientNLP.has_acute_chest_pain && !redFlags.some((f) => f.includes('chest pain'))) {
+    redFlags.push('Acute cardiac / chest pain detected in presenting complaint.');
+  }
+
+  const nlpPayload = {
+    detected_language: clientNLP.detected_language,
+    extracted_symptoms: clientNLP.extracted_symptoms,
+    positive_concepts: clientNLP.positive_concepts,
+    negated_concepts: clientNLP.negated_concepts,
+    uncertain_concepts: clientNLP.uncertain_concepts,
+    original_complaint: clientNLP.original_complaint,
+    requires_complaint_review: clientNLP.requires_complaint_review,
+    complaint_review_reason: clientNLP.complaint_review_reason,
+  };
 
   if (isCritical) {
     return {
@@ -358,7 +588,7 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
       triage_level_name: 'Level 1 - Resuscitation / Immediate',
       recommended_department: 'Emergency / Casualty',
       detected_red_flags: redFlags,
-      model_explanation: '🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag triggered. Overrode machine-learning recommendation to Level 1 / Emergency.',
+      model_explanation: '🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag or acute emergency complaint triggered. Overrode recommendation to Level 1 / Emergency.',
       triggered_safety_rule_ids: triggeredIds,
       safety_rule_explanations: triggeredExpls,
       missing_data_warnings: missingWarnings,
@@ -369,6 +599,7 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
       rules_version: '2026.1-hackathon-domain-primer-v1',
       model_emergency_flag: true,
       clinical_disclaimer: 'HACKATHON PROTOCOL NOTICE: Assistive decision support only. Physician review required.',
+      ...nlpPayload,
     };
   }
 
@@ -390,6 +621,29 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
       rules_version: '2026.1-hackathon-domain-primer-v1',
       model_emergency_flag: false,
       clinical_disclaimer: 'Safety protocol active: Data quality hold requires manual nurse verification.',
+      ...nlpPayload,
+    };
+  }
+
+  // Check if complaint requires nurse review
+  if (clientNLP.requires_complaint_review) {
+    return {
+      triage_level: 2,
+      triage_level_name: 'Cannot assess safely — send to nurse now.',
+      recommended_department: 'General Medicine',
+      detected_red_flags: redFlags,
+      model_explanation: `Cannot assess safely — send to nurse now: ${clientNLP.complaint_review_reason}`,
+      triggered_safety_rule_ids: ['WARN-RULE-COMPLAINT-REVIEW'],
+      safety_rule_explanations: [clientNLP.complaint_review_reason || 'Uncertain or ambiguous complaint text.'],
+      missing_data_warnings: missingWarnings,
+      invalid_data_warnings: invalidWarnings,
+      human_review_required: true,
+      abstention_status: 'ABSTAINED_COMPLAINT_UNCERTAIN',
+      model_version: 'none',
+      rules_version: '2026.1-hackathon-domain-primer-v1',
+      model_emergency_flag: false,
+      clinical_disclaimer: 'Cannot assess safely — send to nurse now. Complaint language is unconfirmed, contradictory, or ambiguous.',
+      ...nlpPayload,
     };
   }
 
@@ -414,6 +668,7 @@ export function generateFallbackAssessment(data: NewPatientIntakeData): Assessme
     rules_version: '2026.1-hackathon-domain-primer-v1',
     model_emergency_flag: false,
     clinical_disclaimer: 'ASSISTIVE DECISION SUPPORT ONLY: This evaluation is generated by MediTriage AI. All assignments remain subject to physician review.',
+    ...nlpPayload,
   };
 }
 

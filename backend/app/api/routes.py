@@ -32,6 +32,7 @@ from app.schemas import (
     TriageAssessmentResult,
     PatientQueueItem,
     QueueStatusUpdate,
+    QueueCategoryUpdate,
     QueueSummaryStats,
     QueueStatus,
     TriageCategory,
@@ -686,6 +687,68 @@ def update_queue_status(
     return item
 
 
+@router.patch("/triage/queue/{patient_id}/category", response_model=PatientQueueItem, summary="Update patient triage category")
+@router.patch("/patients/{patient_id}/category", response_model=PatientQueueItem, summary="Update patient triage category (alias)")
+def update_queue_category(
+    patient_id: str,
+    payload: QueueCategoryUpdate,
+    current_staff: StaffUser = Depends(get_current_staff_user),
+    db: Session = Depends(get_db),
+) -> PatientQueueItem:
+    """Updates patient triage category (EMERGENCY, PRIORITY, ROUTINE) dynamically."""
+    sync_db_to_queue_storage(db)
+    target_key = patient_id if patient_id in QUEUE_STORAGE else None
+    if not target_key:
+        for k, v in QUEUE_STORAGE.items():
+            if v.id == patient_id or v.opd_registration_number == patient_id or v.token_number == patient_id:
+                target_key = k
+                break
+
+    if not target_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with ID '{patient_id}' not found in queue."
+        )
+
+    item = QUEUE_STORAGE[target_key]
+    item.assessment.triage_category = payload.category
+    item.updated_at = datetime.now(timezone.utc)
+    if payload.category == TriageCategory.EMERGENCY:
+        item.assessment.triage_level = 1
+        item.assessment.urgency_score = 10
+        item.assessment.urgency_level = "Level 1 - Immediate Resuscitation / Critical"
+        item.assessment.recommended_action = "Immediate resuscitation / casualty transfer"
+    elif payload.category == TriageCategory.PRIORITY:
+        item.assessment.triage_level = 2
+        item.assessment.urgency_score = 7
+        item.assessment.urgency_level = "Level 2 - Emergent / Priority"
+        item.assessment.recommended_action = "Fast-track urgent consultation"
+    else:
+        item.assessment.triage_level = 3
+        item.assessment.urgency_score = 3
+        item.assessment.urgency_level = "Level 3 - Routine OPD Consultation"
+        item.assessment.recommended_action = "Standard consultation queue according to registration token."
+
+    staff_identifier = current_staff.name or current_staff.email or current_staff.uid or "Staff"
+    if payload.notes:
+        note_str = f"Category Change ({staff_identifier}): {payload.notes.strip()}"
+        item.clinical_notes = f"{item.clinical_notes} | {note_str}" if item.clinical_notes else note_str
+
+    record = (
+        db.query(PatientModel)
+        .filter((PatientModel.id == patient_id) | (PatientModel.patient_id == patient_id))
+        .first()
+    )
+    if record:
+        record.triage_level = item.assessment.triage_level
+        record.triage_level_name = item.assessment.urgency_level
+        record.urgency_score = item.assessment.urgency_score
+        record.updated_at = utc_now()
+        db.commit()
+
+    return item
+
+
 @router.delete("/triage/queue/{patient_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Remove patient from queue")
 def remove_from_queue(
     patient_id: str,
@@ -695,7 +758,7 @@ def remove_from_queue(
     """Deletes or discharges a patient from the queue."""
     target_key = patient_id if patient_id in QUEUE_STORAGE else None
     if not target_key:
-        for k, v in QUEUE_STORAGE.items():
+        for k, v in list(QUEUE_STORAGE.items()):
             if v.id == patient_id or v.opd_registration_number == patient_id or v.token_number == patient_id:
                 target_key = k
                 break
@@ -717,8 +780,44 @@ def remove_from_queue(
         .first()
     )
     if record:
-        record.status = "COMPLETED"
-        record.updated_at = utc_now()
+        db.delete(record)
+        db.commit()
+    return None
+
+
+@router.delete("/patients/{patient_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete patient record from database")
+def delete_patient_record(
+    patient_id: str,
+    current_staff: StaffUser = Depends(get_current_staff_user),
+    db: Session = Depends(get_db),
+):
+    """Deletes a patient record permanently from database and active queue."""
+    target_key = patient_id if patient_id in QUEUE_STORAGE else None
+    if not target_key:
+        for k, v in list(QUEUE_STORAGE.items()):
+            if v.id == patient_id or v.opd_registration_number == patient_id or v.token_number == patient_id:
+                target_key = k
+                break
+    record = (
+        db.query(PatientModel)
+        .filter((PatientModel.id == patient_id) | (PatientModel.patient_id == patient_id))
+        .first()
+    )
+    if not record and not target_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with ID '{patient_id}' not found."
+        )
+    if target_key and target_key in QUEUE_STORAGE:
+        item = QUEUE_STORAGE[target_key]
+        if item.assessment.triage_category == TriageCategory.EMERGENCY and item.status != QueueStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active Level 1 Emergency cannot be deleted without completing clinical handover or documenting review notes.",
+            )
+        del QUEUE_STORAGE[target_key]
+    if record:
+        db.delete(record)
         db.commit()
     return None
 
@@ -816,7 +915,7 @@ def get_queue_statistics(db: Session = Depends(get_db)) -> QueueSummaryStats:
         completed_count=sum(1 for i in items if i.status == QueueStatus.COMPLETED),
         emergency_count=sum(1 for p in db_patients if p.triage_level == 1) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.EMERGENCY),
         priority_count=sum(1 for p in db_patients if p.triage_level == 2) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.PRIORITY),
-        routine_count=sum(1 for p in db_patients if p.triage_level and p.triage_level >= 3) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.ROUTINE),
+        routine_count=sum(1 for p in db_patients if (not p.triage_level or p.triage_level >= 3)) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.ROUTINE),
         departments_breakdown=dept_counts,
         # Explicit distinguished metrics
         patients_today=patients_today_count,
@@ -828,7 +927,7 @@ def get_queue_statistics(db: Session = Depends(get_db)) -> QueueSummaryStats:
         total_recorded_emergency_cases=total_recorded_emergency_cases_count,
         emergency_cases=sum(1 for p in db_patients if p.triage_level == 1) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.EMERGENCY),
         priority_cases=sum(1 for p in db_patients if p.triage_level == 2) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.PRIORITY),
-        routine_cases=sum(1 for p in db_patients if p.triage_level and p.triage_level >= 3) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.ROUTINE),
+        routine_cases=sum(1 for p in db_patients if (not p.triage_level or p.triage_level >= 3)) if db_patients else sum(1 for i in items if i.assessment.triage_category == TriageCategory.ROUTINE),
     )
 
 
@@ -2114,10 +2213,16 @@ def get_model_evaluation(artifacts_dir: Optional[str] = None) -> Dict[str, Any]:
             "emergency_recall": triage_test.get("emergency_recall_sensitivity"),
             "emergency_precision": emerg_prec,
             "emergency_false_negatives": triage_test.get("emergency_false_negatives", 0),
+            "emergency_false_positives": triage_test.get("emergency_false_positives", 0),
             "emergency_cases_total": triage_test.get("emergency_cases_total", 0),
+            "non_emergency_cases_total": triage_test.get("non_emergency_cases_total", 0),
             "emergency_recall_numerator": triage_test.get("emergency_recall_numerator", 0),
             "emergency_recall_denominator": triage_test.get("emergency_recall_denominator", 0),
-            "emergency_recall_display": triage_test.get("emergency_recall_display", "0/0 (N/A)"),
+            "emergency_recall_display": triage_test.get("emergency_recall_display", "Insufficient data"),
+            "over_triage_rate": triage_test.get("over_triage_rate", 0.0),
+            "over_triage_display": triage_test.get("over_triage_display", "0/0 (0.0%)"),
+            "correct_predictions_count": triage_test.get("correct_predictions_count"),
+            "incorrect_predictions_count": triage_test.get("incorrect_predictions_count"),
             "is_emergency_set_empty": triage_test.get("is_emergency_set_empty", False),
         },
         "asymmetric_clinical_cost": triage_test.get("asymmetric_clinical_cost", {}),

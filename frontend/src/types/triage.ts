@@ -38,6 +38,15 @@ export interface PatientTriageRequest {
   clinical_notes?: string | null;
 }
 
+export interface ExtractedSymptom {
+  concept: string;
+  context: 'positive' | 'negated' | 'uncertain' | 'historical';
+  matched_text: string;
+  supporting_phrase?: string | null;
+  severity_modifier?: string | null;
+  is_red_flag: boolean;
+}
+
 export interface TriageAssessmentResult {
   triage_category: TriageCategory;
   urgency_level: string;
@@ -50,6 +59,14 @@ export interface TriageAssessmentResult {
   max_recommended_wait_minutes: number;
   assessment_timestamp: string;
   disclaimer: string;
+  detected_language?: string;
+  extracted_symptoms?: ExtractedSymptom[];
+  positive_concepts?: string[];
+  negated_concepts?: string[];
+  uncertain_concepts?: string[];
+  original_complaint?: string;
+  requires_complaint_review?: boolean;
+  complaint_review_reason?: string | null;
 }
 
 export interface PatientQueueItem {
@@ -88,6 +105,9 @@ export interface QueueSummaryStats {
   active_emergency_cases?: number;
   today_emergency_cases?: number;
   total_recorded_emergency_cases?: number;
+  emergency_cases?: number;
+  priority_cases?: number;
+  routine_cases?: number;
 }
 
 export interface DashboardSummaryMetrics {
@@ -145,7 +165,7 @@ export interface HealthResponse {
 
 export type SexOption = 'Male' | 'Female' | 'Other' | 'Unspecified';
 
-export type ComplaintLanguage = 'English' | 'Telugu' | 'Hindi' | 'Urdu' | 'Kannada' | 'Tamil' | 'Other';
+export type ComplaintLanguage = 'English' | 'Telugu' | 'Hindi' | 'Urdu' | 'Kannada' | 'Tamil' | 'Mixed (Telugu & English)' | 'Other';
 
 export type TemperatureUnit = 'F' | 'C';
 
@@ -210,7 +230,8 @@ export type AbstentionStatus =
   | 'ABSTAINED_MODEL_UNAVAILABLE'
   | 'ABSTAINED_DATA_QUALITY_HOLD'
   | 'ABSTAINED_LOW_CONFIDENCE'
-  | 'ABSTAINED_INFERENCE_ERROR';
+  | 'ABSTAINED_INFERENCE_ERROR'
+  | 'ABSTAINED_COMPLAINT_UNCERTAIN';
 
 export interface AssessmentResultData {
   triage_level: number; // 1 to 5
@@ -228,6 +249,14 @@ export interface AssessmentResultData {
   rules_version: string;
   model_emergency_flag: boolean;
   clinical_disclaimer: string;
+  detected_language?: string;
+  extracted_symptoms?: ExtractedSymptom[];
+  positive_concepts?: string[];
+  negated_concepts?: string[];
+  uncertain_concepts?: string[];
+  original_complaint?: string;
+  requires_complaint_review?: boolean;
+  complaint_review_reason?: string | null;
 }
 
 export type ReviewStatus = 'UNREVIEWED' | 'REVIEWED' | 'DETERIORATION_FLAGGED' | 'REASSESSMENT_REQUESTED';
@@ -314,9 +343,15 @@ export interface TriageEvaluationMetrics {
   f1_weighted: number;
   emergency_level_analyzed?: number;
   emergency_cases_total: number;
+  non_emergency_cases_total?: number;
   emergency_recall_sensitivity: number | null;
   emergency_precision?: number | null;
   emergency_false_negatives: number;
+  emergency_false_positives?: number;
+  over_triage_rate?: number;
+  over_triage_display?: string;
+  correct_predictions_count?: number;
+  incorrect_predictions_count?: number;
   emergency_recall_numerator?: number;
   emergency_recall_denominator?: number;
   emergency_recall_display?: string;
@@ -325,17 +360,29 @@ export interface TriageEvaluationMetrics {
     under_triage_penalty_weight: number;
     emergency_under_triage_count: number;
     emergency_under_triage_cost: number;
+    over_triage_count?: number;
+    over_triage_cost?: number;
     non_emergency_misclassifications_count: number;
     total_asymmetric_clinical_loss: number;
     mean_clinical_loss_per_patient: number;
-    official_evaluator_provided: boolean;
+    official_evaluator_provided?: boolean;
     evaluator_dependency_status: string;
   };
   abstention_metrics?: {
+    total_cases?: number;
+    definitive_cases_count?: number;
     abstention_count: number;
+    cases_referred_for_nurse_review?: number;
     abstention_rate: number;
+    abstention_percentage?: string;
+    abstention_message?: string;
+    emergency_cases_total?: number;
     emergencies_in_abstained_count: number;
+    non_emergencies_in_abstained_count?: number;
     autonomous_emergency_recall: number | null;
+    autonomous_emergency_recall_numerator?: number;
+    autonomous_emergency_recall_denominator?: number;
+    autonomous_emergency_recall_display?: string;
     workflow_safety_rate_with_nurse_review: number | null;
     abstention_safety_invariant: string;
   };
@@ -395,7 +442,13 @@ export interface ModelEvaluationResponse {
     emergency_recall: number | null;
     emergency_precision: number | null;
     emergency_false_negatives: number;
+    emergency_false_positives?: number;
     emergency_cases_total: number;
+    non_emergency_cases_total?: number;
+    over_triage_rate?: number;
+    over_triage_display?: string;
+    correct_predictions_count?: number;
+    incorrect_predictions_count?: number;
     emergency_recall_numerator?: number;
     emergency_recall_denominator?: number;
     emergency_recall_display?: string;
@@ -405,17 +458,29 @@ export interface ModelEvaluationResponse {
     under_triage_penalty_weight: number;
     emergency_under_triage_count: number;
     emergency_under_triage_cost: number;
+    over_triage_count?: number;
+    over_triage_cost?: number;
     non_emergency_misclassifications_count: number;
     total_asymmetric_clinical_loss: number;
     mean_clinical_loss_per_patient: number;
-    official_evaluator_provided: boolean;
+    official_evaluator_provided?: boolean;
     evaluator_dependency_status: string;
   };
   abstention_metrics?: {
+    total_cases?: number;
+    definitive_cases_count?: number;
     abstention_count: number;
+    cases_referred_for_nurse_review?: number;
     abstention_rate: number;
+    abstention_percentage?: string;
+    abstention_message?: string;
+    emergency_cases_total?: number;
     emergencies_in_abstained_count: number;
+    non_emergencies_in_abstained_count?: number;
     autonomous_emergency_recall: number | null;
+    autonomous_emergency_recall_numerator?: number;
+    autonomous_emergency_recall_denominator?: number;
+    autonomous_emergency_recall_display?: string;
     workflow_safety_rate_with_nurse_review: number | null;
     abstention_safety_invariant: string;
   };

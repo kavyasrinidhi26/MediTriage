@@ -28,6 +28,8 @@ export const ReviewAssessmentModal: React.FC<ReviewAssessmentModalProps> = ({
 }) => {
   const [nurseName, setNurseName] = useState<string>('Staff Nurse Sunita');
   const [reviewNotes, setReviewNotes] = useState<string>('');
+  const [assignedTriageLevel, setAssignedTriageLevel] = useState<number>(patient?.triage_level || 3);
+  const [assignedDepartment, setAssignedDepartment] = useState<string>(patient?.recommended_department || 'General Medicine');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -266,9 +268,54 @@ export const ReviewAssessmentModal: React.FC<ReviewAssessmentModalProps> = ({
                 />
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    Assigned Triage Acuity (Clinician Override)
+                  </label>
+                  <select
+                    value={assignedTriageLevel}
+                    onChange={(e) => setAssignedTriageLevel(Number(e.target.value))}
+                    className="filter-search-input"
+                    style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                  >
+                    <option value={1}>Level 1 - Immediate Resuscitation (Emergency)</option>
+                    <option value={2}>Level 2 - Emergent / Very Urgent (Priority)</option>
+                    <option value={3}>Level 3 - Urgent (Priority)</option>
+                    <option value={4}>Level 4 - Less Urgent (Routine)</option>
+                    <option value={5}>Level 5 - Non-Urgent (Routine)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    Assigned Specialty Department
+                  </label>
+                  <select
+                    value={assignedDepartment}
+                    onChange={(e) => setAssignedDepartment(e.target.value)}
+                    className="filter-search-input"
+                    style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Casualty / Emergency">Casualty / Emergency</option>
+                    <option value="General Medicine">General Medicine</option>
+                    <option value="Cardiology">Cardiology</option>
+                    <option value="Pulmonology">Pulmonology</option>
+                    <option value="Pediatrics">Pediatrics</option>
+                    <option value="Orthopedics">Orthopedics</option>
+                    <option value="Obstetrics & Gynecology">Obstetrics & Gynecology</option>
+                    <option value="General Surgery">General Surgery</option>
+                    <option value="ENT (Ear, Nose, Throat)">ENT (Ear, Nose, Throat)</option>
+                    <option value="Ophthalmology">Ophthalmology</option>
+                    <option value="Dermatology">Dermatology</option>
+                    <option value="Psychiatry">Psychiatry</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                  Bedside Assessment Notes / Interventions Taken (Optional)
+                  Bedside Assessment Notes / Clinical Rationale (Preserves original model recommendation)
                 </label>
                 <textarea
                   value={reviewNotes}

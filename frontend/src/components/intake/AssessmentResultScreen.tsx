@@ -16,6 +16,9 @@ import {
   HeartPulse,
   User,
   CheckCheck,
+  Languages,
+  XCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 export interface AssessmentResultScreenProps {
@@ -47,9 +50,20 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
     triage_level_name: assessment.triage_level_name || null,
   };
 
+  const originalComplaint = assessment.original_complaint || intakeData.chief_complaint;
+  const detectedLang = assessment.detected_language || intakeData.complaint_language;
+  const requiresComplaintReview = Boolean(assessment.requires_complaint_review);
+
+  const extractedSymptoms = assessment.extracted_symptoms || [];
+  const activeFindings = extractedSymptoms.filter((s) => s.context === 'positive');
+  const negatedFindings = extractedSymptoms.filter((s) => s.context === 'negated');
+  const uncertainFindings = extractedSymptoms.filter((s) => s.context === 'uncertain');
+  const historicalFindings = extractedSymptoms.filter((s) => s.context === 'historical');
+
   const isAbstained =
-    typeof assessment.abstention_status === 'string' &&
-    assessment.abstention_status.startsWith('ABSTAINED');
+    (typeof assessment.abstention_status === 'string' &&
+      assessment.abstention_status.startsWith('ABSTAINED')) ||
+    requiresComplaintReview;
 
   const isRuleOverride =
     assessment.abstention_status === 'SAFETY_OVERRIDE' ||
@@ -153,10 +167,11 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
             <AlertTriangle size={28} className="text-amber-700" />
           </div>
           <div className="banner-content-col">
-            <h2 className="banner-title">SYSTEM ABSTENTION: MANUAL CLINICAL TRIAGE REQUIRED</h2>
+            <h2 className="banner-title">Cannot assess safely — send to nurse now.</h2>
             <p className="banner-desc">
               MediTriage AI has safely withheld automated acuity scoring ({assessment.abstention_status}).
-              The patient is placed in <strong>Priority Holding</strong> status. Bedside nurse or triage physician must perform direct manual evaluation.
+              Reason: {assessment.invalid_data_warnings?.length ? assessment.invalid_data_warnings.join('; ') : (assessment.missing_data_warnings?.length ? assessment.missing_data_warnings.join('; ') : 'Clinical data uncertain or model confidence below safety threshold')}.
+              Patient is placed in <strong>Priority Holding</strong> status. Bedside nurse must perform direct manual evaluation.
             </p>
           </div>
         </div>
@@ -212,6 +227,10 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
                 <span className="source-tag tag-rule-override">
                   <ShieldAlert size={12} /> Rule-Based Safety Override
                 </span>
+              ) : isAbstained ? (
+                <span className="source-tag" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>
+                  <AlertTriangle size={12} /> Safety Hold (Unconfirmed Model Decision)
+                </span>
               ) : (
                 <span className="source-tag tag-model-prediction">
                   <Sparkles size={12} /> Machine Learning Decision Support
@@ -219,11 +238,11 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
               )}
             </div>
             <h1 className="acuity-level-title" style={{ color: urgencyPillColor }}>
-              {isAbstained ? 'System Abstained' : assessment.triage_level_name || urgencyBadgeText}
+              {isAbstained ? 'Cannot assess safely — send to nurse now.' : assessment.triage_level_name || urgencyBadgeText}
             </h1>
             <p className="acuity-level-sub">
               {isAbstained
-                ? 'Automated classification deferred for patient safety. Held in Priority Review queue.'
+                ? 'Automated classification deferred for patient safety. Bedside nurse must verify vitals and assign definitive acuity.'
                 : isCriticalPresentation
                 ? 'Immediate medical officer bedside intervention mandated by protocol.'
                 : 'Acuity score derived from physiological vitals and multilingual symptom analysis.'}
@@ -283,6 +302,195 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
           </div>
         )}
 
+        {/* MULTILINGUAL SYMPTOM & CHIEF COMPLAINT UNDERSTANDING */}
+        <div className="section-block complaint-understanding-block" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', background: '#ffffff', padding: '1.25rem', margin: '1.25rem 0' }}>
+          <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Languages size={20} style={{ color: '#2563eb' }} />
+              <h3 className="section-header-title" style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#1e293b' }}>
+                Symptom & Chief Complaint Understanding
+              </h3>
+            </div>
+            {detectedLang && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: '#eff6ff',
+                  color: '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                }}
+              >
+                <span>Input Format:</span>
+                <strong>{detectedLang}</strong>
+              </span>
+            )}
+          </div>
+
+          {/* Original Chief Complaint Verbatim */}
+          <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '0.25rem' }}>
+              Original Patient Complaint (Verbatim for Nurse Review):
+            </div>
+            <div style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 500, fontStyle: 'italic' }}>
+              "{originalComplaint}"
+            </div>
+          </div>
+
+          {/* Nurse Review Banner if Interpretation Ambiguous, Contradictory, or Unsupported */}
+          {requiresComplaintReview && (
+            <div
+              style={{
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+              }}
+              role="alert"
+            >
+              <AlertTriangle size={22} style={{ color: '#b45309', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#92400e', marginBottom: '0.25rem' }}>
+                  Cannot assess safely — send to nurse now.
+                </div>
+                <p style={{ margin: 0, fontSize: '0.835rem', color: '#78350f', lineHeight: 1.4 }}>
+                  {assessment.complaint_review_reason || 'Complaint phrasing is unverified, dialectally ambiguous, or contains contradictory statements. Direct bedside nurse interview required.'}
+                </p>
+                <div style={{ marginTop: '0.6rem' }}>
+                  <button
+                    type="button"
+                    onClick={onReviewIntake}
+                    style={{
+                      background: '#b45309',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <FileEdit size={14} /> Review Complaint with Patient
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Extracted Findings Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+            {/* Active Positive Findings */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.75rem 0.9rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#166534', fontWeight: 700, fontSize: '0.825rem', marginBottom: '0.5rem' }}>
+                <CheckCircle2 size={16} />
+                <span>Recognized Active Findings ({activeFindings.length})</span>
+              </div>
+              {activeFindings.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: '#65a30d', fontStyle: 'italic' }}>
+                  No active red-flag symptoms recognized
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {activeFindings.map((sym, idx) => (
+                    <div key={idx} style={{ background: '#ffffff', border: '1px solid #86efac', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, color: '#15803d' }}>{sym.concept.replace(/_/g, ' ')}</span>
+                        {sym.severity_modifier && (
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.35rem', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', fontWeight: 700 }}>
+                            {sym.severity_modifier}
+                          </span>
+                        )}
+                        {sym.is_red_flag && (
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.35rem', background: '#dc2626', color: '#ffffff', borderRadius: '4px', fontWeight: 700 }}>
+                            RED FLAG
+                          </span>
+                        )}
+                      </div>
+                      {sym.supporting_phrase && (
+                        <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.2rem' }}>
+                          Matched: <span style={{ fontStyle: 'italic', fontWeight: 500 }}>"{sym.supporting_phrase}"</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Explicitly Denied (Negated) Symptoms */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 0.9rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 700, fontSize: '0.825rem', marginBottom: '0.5rem' }}>
+                <XCircle size={16} style={{ color: '#64748b' }} />
+                <span>Explicitly Denied / Negated Symptoms ({negatedFindings.length})</span>
+              </div>
+              {negatedFindings.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                  No negated symptoms explicitly noted
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {negatedFindings.map((sym, idx) => (
+                    <div key={idx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{sym.concept.replace(/_/g, ' ')}</span>
+                        <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.35rem', background: '#f1f5f9', color: '#475569', borderRadius: '4px', fontWeight: 600 }}>
+                          NEGATED (DENIED)
+                        </span>
+                      </div>
+                      {sym.supporting_phrase && (
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+                          Evidence: <span style={{ fontStyle: 'italic' }}>"{sym.supporting_phrase}"</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Uncertain or Historical (if any) */}
+            {(uncertainFindings.length > 0 || historicalFindings.length > 0) && (
+              <div style={{ background: '#fdf4ff', border: '1px solid #f0abfc', borderRadius: '8px', padding: '0.75rem 0.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#86198f', fontWeight: 700, fontSize: '0.825rem', marginBottom: '0.5rem' }}>
+                  <HelpCircle size={16} />
+                  <span>Uncertain / Historical Context</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {uncertainFindings.map((sym, idx) => (
+                    <div key={`u-${idx}`} style={{ background: '#ffffff', border: '1px solid #e879f9', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
+                      <span style={{ fontWeight: 600, color: '#a21caf' }}>{sym.concept.replace(/_/g, ' ')}</span>
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', padding: '0.1rem 0.35rem', background: '#fae8ff', color: '#86198f', borderRadius: '4px' }}>
+                        UNCERTAIN
+                      </span>
+                    </div>
+                  ))}
+                  {historicalFindings.map((sym, idx) => (
+                    <div key={`h-${idx}`} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>{sym.concept.replace(/_/g, ' ')}</span>
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', padding: '0.1rem 0.35rem', background: '#f1f5f9', color: '#475569', borderRadius: '4px' }}>
+                        HISTORICAL
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* CLINICAL & MODEL RATIONALE */}
         <div className="section-block rationale-block">
           <div className="section-header-row">
@@ -332,6 +540,31 @@ export const AssessmentResultScreen: React.FC<AssessmentResultScreenProps> = ({
             </div>
           </div>
         )}
+
+        {/* REQUIRED NEXT ACTION FOR CLINICAL STAFF */}
+        <div className="section-block" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '1rem', margin: '1rem 0' }}>
+          <div className="section-header-row text-slate-900" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <Building2 size={18} style={{ color: '#0284c7' }} />
+            <h3 className="section-header-title" style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>
+              Required Next Action for Staff
+            </h3>
+          </div>
+          <div style={{ fontSize: '0.88rem', color: '#334155', lineHeight: 1.5 }}>
+            {isCriticalPresentation ? (
+              <p style={{ margin: 0, fontWeight: 600, color: '#dc2626' }}>
+                🚨 Immediate Action: Transfer patient immediately to Emergency Resuscitation / Casualty Bay without delay. Notify attending medical officer immediately.
+              </p>
+            ) : isAbstained ? (
+              <p style={{ margin: 0, fontWeight: 600, color: '#b45309' }}>
+                ⚠️ Nurse Action Required: Patient is held in Priority Review queue. Bedside nurse must verify vital signs, correct any missing or contradictory measurements, and assign definitive clinician triage level.
+              </p>
+            ) : (
+              <p style={{ margin: 0, color: '#475569' }}>
+                Standard Action: Direct patient to {assessment.recommended_department || 'General Medicine'} waiting area according to token order. Monitor for clinical deterioration while in queue.
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* AUDIT & VERSION FOOTER */}
         <div className="system-metadata-strip">

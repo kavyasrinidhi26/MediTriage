@@ -290,7 +290,7 @@ export const PatientListModal: React.FC<PatientListModalProps> = ({
     });
 
     return result;
-  }, [patients, searchQuery, departmentFilter, statusFilter, sortBy]);
+  }, [patients, searchQuery, departmentFilter, statusFilter, triageLevelFilter, sortBy]);
 
   // Filtered emergency trauma cases (when cardId === 'EMERGENCY' and emergencyViewMode === 'trauma')
   const filteredEmergencyCases = useMemo(() => {

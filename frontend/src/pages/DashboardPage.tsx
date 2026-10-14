@@ -9,7 +9,11 @@ import {
   fetchQueue,
   fetchDashboardSummaryMetrics,
   updatePatientStatus,
+  updatePatientCategory,
+  deletePatient,
   fetchEmergencyCases,
+  subscribeToQueueUpdates,
+  isPatientInHospitalToday,
 } from '../services/api';
 import { SummaryCards } from '../components/dashboard/SummaryCards';
 import { PatientQueueTable } from '../components/dashboard/PatientQueueTable';
@@ -138,33 +142,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   useEffect(() => {
     loadDashboardData();
 
+    // Subscribe to immediate real-time local / API queue change events
+    const unsubscribe = subscribeToQueueUpdates(() => {
+      loadDashboardData(true);
+    });
+
     // Lightweight live polling interval (every 6 seconds) to synchronize live arrivals and queue
     const intervalId = setInterval(() => {
       loadDashboardData(true);
     }, 6000);
 
     return () => {
+      unsubscribe();
       clearInterval(intervalId);
     };
   }, [loadDashboardData]);
-
-  // Helper to test if a patient registration timestamp is within today in hospital timezone
-  const isPatientInHospitalToday = (isoString?: string) => {
-    if (!isoString) return false;
-    try {
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: metrics.hospital_timezone || 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      return formatter.format(new Date(isoString)) === formatter.format(new Date());
-    } catch {
-      const d = new Date(isoString);
-      const now = new Date();
-      return d.toDateString() === now.toDateString();
-    }
-  };
 
   // Compute department breakdown dynamically from actual hospital records
   const departmentWorkload = useMemo(() => {
@@ -225,7 +217,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       case 'WAITING':
         return metrics.currently_waiting ?? metrics.awaiting_review_cases;
       case 'EMERGENCY':
-        return metrics.active_emergency_cases ?? acuityCounts.emergency_cases;
+        return metrics.emergency_cases ?? acuityCounts.emergency_cases;
       case 'PRIORITY':
         return metrics.priority_cases ?? acuityCounts.priority_cases;
       case 'ROUTINE':
@@ -277,9 +269,45 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleUpdateStatus = async (patientId: string, newStatus: QueueStatus) => {
     try {
       await updatePatientStatus(patientId, newStatus);
-      await loadDashboardData();
+      setSelectedPatient((prev) => (prev && prev.id === patientId ? { ...prev, status: newStatus } : prev));
+      await loadDashboardData(true);
     } catch (err: any) {
       setError(err.message || 'Failed to update patient queue status.');
+    }
+  };
+
+  // Handle triage category update
+  const handleUpdateCategory = async (patientId: string, newCategory: 'EMERGENCY' | 'PRIORITY' | 'ROUTINE') => {
+    try {
+      await updatePatientCategory(patientId, newCategory);
+      setSelectedPatient((prev) => {
+        if (!prev || prev.id !== patientId) return prev;
+        const triageLevel = newCategory === 'EMERGENCY' ? 1 : newCategory === 'PRIORITY' ? 2 : 3;
+        const levelName = newCategory === 'EMERGENCY' ? 'Level 1 - Resuscitation' : newCategory === 'PRIORITY' ? 'Level 2 - Priority' : 'Level 3 - Routine';
+        return {
+          ...prev,
+          assessment: {
+            ...prev.assessment,
+            triage_category: newCategory,
+            triage_level: triageLevel,
+            urgency_level: levelName,
+          },
+        };
+      });
+      await loadDashboardData(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update patient triage category.');
+    }
+  };
+
+  // Handle patient record deletion
+  const handleDeletePatient = async (patientId: string) => {
+    try {
+      await deletePatient(patientId);
+      setSelectedPatient(null);
+      await loadDashboardData(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete patient record.');
     }
   };
 
@@ -354,6 +382,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           activeFilter={activeCardFilter}
           onCardClick={handleCardClick}
           isLoading={isLoading}
+          error={error}
+          onRetry={() => loadDashboardData(false)}
         />
       </motion.section>
 
@@ -433,6 +463,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           patient={selectedPatient}
           onClose={() => setSelectedPatient(null)}
           onUpdateStatus={handleUpdateStatus}
+          onUpdateCategory={handleUpdateCategory}
+          onDeletePatient={handleDeletePatient}
         />
       )}
 

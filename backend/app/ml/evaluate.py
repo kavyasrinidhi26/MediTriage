@@ -63,8 +63,18 @@ def compute_triage_metrics(
     true_emergencies = (y_true == emergency_level)
     n_emergencies = int(np.sum(true_emergencies))
 
+    # Over-triage analysis: non-emergency cases (y_true != emergency_level) predicted as emergency (y_pred == emergency_level)
+    non_emergencies = (y_true != emergency_level)
+    n_non_emergencies = int(np.sum(non_emergencies))
+    pred_emergencies = (y_pred == emergency_level)
+    emergency_false_positives = int(np.sum(non_emergencies & pred_emergencies))
+    over_triage_rate = float(emergency_false_positives / n_non_emergencies) if n_non_emergencies > 0 else 0.0
+
+    # Overall correctness counts
+    correct_predictions_count = int(np.sum(y_true == y_pred))
+    incorrect_predictions_count = int(np.sum(y_true != y_pred))
+
     if n_emergencies > 0:
-        pred_emergencies = (y_pred == emergency_level)
         true_positives = int(np.sum(true_emergencies & pred_emergencies))
         emergency_recall = float(true_positives / n_emergencies)
         emergency_false_negatives = int(n_emergencies - true_positives)
@@ -79,11 +89,11 @@ def compute_triage_metrics(
         # rather than reporting misleading 100% recall.
         emergency_recall = None
         emergency_false_negatives = 0
-        pred_pos_count = int(np.sum(y_pred == emergency_level))
+        pred_pos_count = int(np.sum(pred_emergencies))
         emergency_precision = 0.0 if pred_pos_count > 0 else None
         emergency_recall_numerator = 0
         emergency_recall_denominator = 0
-        emergency_recall_display = "N/A (No emergency cases in set)"
+        emergency_recall_display = "Insufficient data"
         is_emergency_set_empty = True
 
     asymmetric_cost = compute_asymmetric_clinical_cost(
@@ -117,6 +127,7 @@ def compute_triage_metrics(
         "f1_weighted": round(f1_weighted, 4),
         "emergency_level_analyzed": emergency_level,
         "emergency_cases_total": n_emergencies,
+        "non_emergency_cases_total": n_non_emergencies,
         "emergency_recall_sensitivity": round(emergency_recall, 4) if emergency_recall is not None else None,
         "emergency_recall_numerator": emergency_recall_numerator,
         "emergency_recall_denominator": emergency_recall_denominator,
@@ -124,6 +135,11 @@ def compute_triage_metrics(
         "is_emergency_set_empty": is_emergency_set_empty,
         "emergency_precision": round(emergency_precision, 4) if emergency_precision is not None else None,
         "emergency_false_negatives": emergency_false_negatives,
+        "emergency_false_positives": emergency_false_positives,
+        "over_triage_rate": round(over_triage_rate, 4),
+        "over_triage_display": f"{emergency_false_positives}/{n_non_emergencies} ({round(over_triage_rate * 100, 2)}%)" if n_non_emergencies > 0 else "0/0 (0.0%)",
+        "correct_predictions_count": correct_predictions_count,
+        "incorrect_predictions_count": incorrect_predictions_count,
         "asymmetric_clinical_cost": asymmetric_cost,
         "official_weighted_score": official_score,
         "abstention_metrics": abstention_metrics,
@@ -331,15 +347,25 @@ def compute_abstention_metrics(
         autonomous_recall = None
         workflow_safety_rate = None
 
+    definitive_cases_count = int(n - abstention_count)
+    non_emergencies_count = int(n - total_emergencies)
+    non_emergencies_abstained = int(np.sum((~true_emergencies) & is_abstained_mask))
+
     return {
         "total_cases": n,
+        "definitive_cases_count": definitive_cases_count,
         "abstention_count": abstention_count,
+        "cases_referred_for_nurse_review": abstention_count,
         "abstention_rate": round(abstention_rate, 4),
         "abstention_percentage": f"{round(abstention_rate * 100, 2)}%",
         "abstention_message": "Cannot assess — send to nurse now.",
         "emergency_cases_total": total_emergencies,
         "emergencies_in_abstained_count": emergencies_abstained,
+        "non_emergencies_in_abstained_count": non_emergencies_abstained,
         "autonomous_emergency_recall": round(autonomous_recall, 4) if autonomous_recall is not None else None,
+        "autonomous_emergency_recall_numerator": autonomous_tp if total_emergencies > 0 else 0,
+        "autonomous_emergency_recall_denominator": total_emergencies,
+        "autonomous_emergency_recall_display": f"{autonomous_tp}/{total_emergencies} ({round(autonomous_recall * 100, 1)}%)" if total_emergencies > 0 and autonomous_recall is not None else "Insufficient data",
         "workflow_safety_rate_with_nurse_review": round(workflow_safety_rate, 4) if workflow_safety_rate is not None else None,
         "safety_principle": (
             "Abstentions route safely to immediate bedside nurse review, but are NEVER "

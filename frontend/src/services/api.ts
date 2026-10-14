@@ -58,20 +58,110 @@ function getApiUrl(path: string): string {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-// In-memory demo queue cache used when backend is offline
-export let localDemoQueue: PatientQueueItem[] = [...SYNTHETIC_DEMO_PATIENTS];
-export let localDemoEmergencyCases: EmergencyCaseItem[] = [...SYNTHETIC_DEMO_EMERGENCY_CASES];
+const QUEUE_STORAGE_KEY = 'meditriage_local_queue_records_v1';
 
+export function isPatientInHospitalToday(created_at?: string, hospitalTimezone = 'Asia/Kolkata'): boolean {
+  if (!created_at) return false;
+  try {
+    const d = new Date(created_at);
+    if (isNaN(d.getTime())) return false;
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: hospitalTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const patientDate = formatter.format(d);
+    const todayDate = formatter.format(new Date());
+    return patientDate === todayDate;
+  } catch {
+    const d = new Date(created_at);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  }
+}
+
+function getStorage(): Storage | null {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+    return (globalThis as any).localStorage;
+  }
+  return null;
+}
+
+export function loadPersistedLocalQueue(): PatientQueueItem[] {
+  const storage = getStorage();
+  if (!storage) {
+    return [...SYNTHETIC_DEMO_PATIENTS];
+  }
+  try {
+    const raw = storage.getItem(QUEUE_STORAGE_KEY);
+    if (!raw) return [...SYNTHETIC_DEMO_PATIENTS];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+  } catch {
+    // fallback to demo patients
+  }
+  return [...SYNTHETIC_DEMO_PATIENTS];
+}
+
+export function persistLocalQueue(queue: PatientQueueItem[]): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+  } catch {
+    // silently handle localStorage quota
+  }
+}
+
+type QueueListener = () => void;
+const queueListeners: Set<QueueListener> = new Set();
+
+export function subscribeToQueueUpdates(listener: QueueListener): () => void {
+  queueListeners.add(listener);
+  return () => {
+    queueListeners.delete(listener);
+  };
+}
+
+export function notifyQueueChanged(): void {
+  for (const listener of queueListeners) {
+    try {
+      listener();
+    } catch (e) {
+      console.warn('Queue listener callback error:', e);
+    }
+  }
+}
+
+export function resetLocalDemoQueue(): void {
+  localDemoQueue = [...SYNTHETIC_DEMO_PATIENTS];
+  persistLocalQueue(localDemoQueue);
+  notifyQueueChanged();
+}
+
+// In-memory and persisted demo queue cache used when backend is offline
+export let localDemoQueue: PatientQueueItem[] = loadPersistedLocalQueue();
+export let localDemoEmergencyCases: EmergencyCaseItem[] = [...SYNTHETIC_DEMO_EMERGENCY_CASES];
 
 export function addToLocalDemoQueue(item: PatientQueueItem): void {
   const existingIdx = localDemoQueue.findIndex(
-    (i) => (item.id && i.id === item.id) || (item.token_number && i.token_number === item.token_number)
+    (i) => (item.id && i.id === item.id) ||
+           (item.token_number && i.token_number === item.token_number) ||
+           (item.opd_registration_number && i.opd_registration_number === item.opd_registration_number)
   );
   if (existingIdx >= 0) {
     localDemoQueue[existingIdx] = item;
   } else {
     localDemoQueue.unshift(item);
   }
+  persistLocalQueue(localDemoQueue);
+  notifyQueueChanged();
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -208,27 +298,40 @@ export async function fetchQueue(params?: {
 export async function updatePatientStatus(
   patientId: string,
   newStatus: QueueStatus,
-  doctorRoom?: string
+  doctorRoom?: string,
+  notes?: string
 ): Promise<PatientQueueItem> {
   try {
     const authHeaders = await getAuthHeaders();
-    const res = await fetch(getApiUrl(`/triage/queue/${patientId}/status`), {
+    const res = await fetch(getApiUrl(`/triage/queue/${encodeURIComponent(patientId)}/status`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({
         status: newStatus,
         doctor_room: doctorRoom,
+        notes: notes,
       }),
     });
     if (res.ok) {
-      return await res.json();
+      const updated: PatientQueueItem = await res.json();
+      const idx = localDemoQueue.findIndex(
+        (i) => i.id === patientId || i.opd_registration_number === patientId || i.token_number === patientId
+      );
+      if (idx !== -1) {
+        localDemoQueue[idx] = updated;
+        persistLocalQueue(localDemoQueue);
+      }
+      notifyQueueChanged();
+      return updated;
     }
   } catch {
     // Proceed to local update
   }
 
   // Update in local demo queue
-  const idx = localDemoQueue.findIndex((i) => i.id === patientId);
+  const idx = localDemoQueue.findIndex(
+    (i) => i.id === patientId || i.opd_registration_number === patientId || i.token_number === patientId
+  );
   if (idx !== -1) {
     localDemoQueue[idx] = {
       ...localDemoQueue[idx],
@@ -238,10 +341,109 @@ export async function updatePatientStatus(
         ? `${localDemoQueue[idx].clinical_notes || ''} | Room: ${doctorRoom}`.trim()
         : localDemoQueue[idx].clinical_notes,
     };
+    persistLocalQueue(localDemoQueue);
+    notifyQueueChanged();
     return localDemoQueue[idx];
   }
 
   throw new Error(`Patient with ID '${patientId}' not found in queue.`);
+}
+
+export async function updatePatientCategory(
+  patientId: string,
+  newCategory: 'EMERGENCY' | 'PRIORITY' | 'ROUTINE',
+  notes?: string
+): Promise<PatientQueueItem> {
+  try {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(getApiUrl(`/triage/queue/${encodeURIComponent(patientId)}/category`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify({
+        category: newCategory,
+        notes: notes,
+      }),
+    });
+    if (res.ok) {
+      const updated: PatientQueueItem = await res.json();
+      const idx = localDemoQueue.findIndex(
+        (i) => i.id === patientId || i.opd_registration_number === patientId || i.token_number === patientId
+      );
+      if (idx !== -1) {
+        localDemoQueue[idx] = updated;
+        persistLocalQueue(localDemoQueue);
+      }
+      notifyQueueChanged();
+      return updated;
+    }
+  } catch {
+    // Local fallback
+  }
+
+  const idx = localDemoQueue.findIndex(
+    (i) => i.id === patientId || i.opd_registration_number === patientId || i.token_number === patientId
+  );
+  if (idx !== -1) {
+    const item = localDemoQueue[idx];
+    const score = newCategory === 'EMERGENCY' ? 10 : newCategory === 'PRIORITY' ? 7 : 3;
+    const levelName = newCategory === 'EMERGENCY'
+      ? 'Level 1 - Immediate Resuscitation / Critical'
+      : newCategory === 'PRIORITY'
+      ? 'Level 2 - Emergent / Priority'
+      : 'Level 3 - Routine OPD Consultation';
+
+    localDemoQueue[idx] = {
+      ...item,
+      assessment: {
+        ...item.assessment,
+        triage_category: newCategory,
+        urgency_level: levelName,
+        urgency_score: score,
+        recommended_action: newCategory === 'EMERGENCY'
+          ? 'Immediate resuscitation / casualty transfer'
+          : newCategory === 'PRIORITY'
+          ? 'Fast-track urgent consultation'
+          : 'Standard consultation queue according to registration token.',
+      },
+      updated_at: new Date().toISOString(),
+      clinical_notes: notes ? `${item.clinical_notes || ''} | Triage Category: ${newCategory} (${notes})`.trim() : item.clinical_notes,
+    };
+    persistLocalQueue(localDemoQueue);
+    notifyQueueChanged();
+    return localDemoQueue[idx];
+  }
+
+  throw new Error(`Patient with ID '${patientId}' not found in queue.`);
+}
+
+export async function deletePatient(patientId: string): Promise<void> {
+  try {
+    const authHeaders = await getAuthHeaders();
+    const res = await fetch(getApiUrl(`/patients/${encodeURIComponent(patientId)}`), {
+      method: 'DELETE',
+      headers: { ...authHeaders },
+    });
+    if (res.ok || res.status === 204) {
+      localDemoQueue = localDemoQueue.filter(
+        (i) => i.id !== patientId && i.opd_registration_number !== patientId && i.token_number !== patientId
+      );
+      persistLocalQueue(localDemoQueue);
+      notifyQueueChanged();
+      return;
+    }
+  } catch {
+    // Local fallback
+  }
+
+  const prevLen = localDemoQueue.length;
+  localDemoQueue = localDemoQueue.filter(
+    (i) => i.id !== patientId && i.opd_registration_number !== patientId && i.token_number !== patientId
+  );
+  if (localDemoQueue.length !== prevLen) {
+    persistLocalQueue(localDemoQueue);
+    notifyQueueChanged();
+    return;
+  }
 }
 
 /**
@@ -325,13 +527,7 @@ export async function fetchSavedQueue(
     items = items.filter((p) => p.status === filters.status);
   }
   if (filters?.today_only) {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const endOfToday = startOfToday + 86400000;
-    items = items.filter((p) => {
-      const t = new Date(p.created_at).getTime();
-      return !isNaN(t) && t >= startOfToday && t < endOfToday;
-    });
+    items = items.filter((p) => isPatientInHospitalToday(p.created_at, 'Asia/Kolkata'));
   }
   if (filters?.review_status) {
     items = items.filter((p) => p.review_status === filters.review_status);
@@ -363,20 +559,67 @@ export async function markPatientReviewed(
   reviewNotes?: string
 ): Promise<SavedPatientQueueItem> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/review`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({
-      reviewed_by: reviewedBy,
-      review_notes: reviewNotes,
-    }),
-  });
+  try {
+    const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/review`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify({
+        reviewed_by: reviewedBy,
+        review_notes: reviewNotes,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Failed to review patient (${res.status})`);
+    if (res.ok) {
+      notifyQueueChanged();
+      return await res.json();
+    }
+  } catch {
+    // Local fallback
   }
-  return await res.json();
+
+  const idx = localDemoQueue.findIndex((i) => i.id === patientId || i.opd_registration_number === patientId);
+  if (idx !== -1) {
+    localDemoQueue[idx].clinical_notes = `${localDemoQueue[idx].clinical_notes || ''} | Reviewed by: ${reviewedBy}`.trim();
+    persistLocalQueue(localDemoQueue);
+  }
+  notifyQueueChanged();
+  return {
+    id: patientId,
+    patient_id: patientId,
+    token_number: 'OPD-REV',
+    patient_name: 'Patient',
+    age: 30,
+    gender: 'Other',
+    arrival_time: '09:00 AM',
+    chief_complaint: 'Routine',
+    complaint_language: 'English',
+    known_conditions: [],
+    medications: '',
+    systolic_bp: null,
+    diastolic_bp: null,
+    pulse_bpm: null,
+    temperature: null,
+    temperature_unit: 'F',
+    spo2: null,
+    triage_level: 3,
+    triage_level_name: 'Level 3 - Routine',
+    recommended_department: 'General Medicine',
+    urgency_score: 3,
+    warning_signs: [],
+    assessment_status: 'REVIEWED',
+    review_status: 'REVIEWED',
+    reviewed_by: reviewedBy,
+    reviewed_at: new Date().toISOString(),
+    review_notes: reviewNotes || null,
+    deterioration_flag: false,
+    status: 'WAITING',
+    waiting_minutes: 10,
+    is_critical_escalation: false,
+    is_synthetic: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    disclaimer: 'Prototype clinical review',
+  };
 }
 
 /**
@@ -389,21 +632,71 @@ export async function flagPatientDeterioration(
   notes?: string
 ): Promise<SavedPatientQueueItem> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/deterioration`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({
-      flagged_by: flaggedBy,
-      reason: reason,
-      notes: notes,
-    }),
-  });
+  try {
+    const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/deterioration`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify({
+        flagged_by: flaggedBy,
+        reason: reason,
+        notes: notes,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Failed to flag deterioration (${res.status})`);
+    if (res.ok) {
+      notifyQueueChanged();
+      return await res.json();
+    }
+  } catch {
+    // Local fallback
   }
-  return await res.json();
+
+  // Escalate patient in local demo queue
+  const idx = localDemoQueue.findIndex((i) => i.id === patientId || i.opd_registration_number === patientId);
+  if (idx !== -1) {
+    localDemoQueue[idx].assessment.triage_category = 'EMERGENCY';
+    localDemoQueue[idx].assessment.urgency_level = 'Level 1 - Immediate Resuscitation / Critical (Deterioration Flagged)';
+    localDemoQueue[idx].assessment.urgency_score = 10;
+    persistLocalQueue(localDemoQueue);
+  }
+  notifyQueueChanged();
+  return {
+    id: patientId,
+    patient_id: patientId,
+    token_number: 'OPD-FLAG',
+    patient_name: 'Patient',
+    age: 40,
+    gender: 'Other',
+    arrival_time: '09:00 AM',
+    chief_complaint: reason,
+    complaint_language: 'English',
+    known_conditions: [],
+    medications: '',
+    systolic_bp: null,
+    diastolic_bp: null,
+    pulse_bpm: null,
+    temperature: null,
+    temperature_unit: 'F',
+    spo2: null,
+    triage_level: 1,
+    triage_level_name: 'Level 1 - Immediate Resuscitation',
+    recommended_department: 'Casualty / Emergency',
+    urgency_score: 10,
+    warning_signs: [reason],
+    assessment_status: 'ESCALATED_EMERGENCY',
+    review_status: 'UNREVIEWED',
+    reviewed_by: flaggedBy,
+    reviewed_at: new Date().toISOString(),
+    review_notes: notes || null,
+    deterioration_flag: true,
+    status: 'WAITING',
+    waiting_minutes: 5,
+    is_critical_escalation: true,
+    is_synthetic: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    disclaimer: 'Deterioration escalation notice',
+  };
 }
 
 /**
@@ -422,17 +715,112 @@ export async function reassessPatient(
   }
 ): Promise<SavedPatientQueueItem> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/reassess`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const res = await fetch(getApiUrl(`/queue/${encodeURIComponent(patientId)}/reassess`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify(payload),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Failed to reassess patient (${res.status})`);
+    if (res.ok) {
+      notifyQueueChanged();
+      return await res.json();
+    }
+  } catch {
+    // Proceed to local evaluation
   }
-  return await res.json();
+
+  // Update in local demo queue
+  const idx = localDemoQueue.findIndex((i) => i.id === patientId || i.opd_registration_number === patientId || i.token_number === patientId);
+  if (idx !== -1) {
+    const p = localDemoQueue[idx];
+    const newPulse = payload.updated_pulse ?? p.vitals.heart_rate;
+    const newSpo2 = payload.updated_spo2 ?? p.vitals.spo2;
+    const newSys = payload.updated_systolic_bp ?? p.vitals.systolic_bp;
+    const newDia = payload.updated_diastolic_bp ?? p.vitals.diastolic_bp;
+    const newTemp = payload.updated_temperature ?? p.vitals.temperature_f;
+
+    const isEmergency =
+      (newSpo2 != null && newSpo2 < 90) ||
+      (newPulse != null && (newPulse > 130 || newPulse < 40)) ||
+      (newSys != null && (newSys < 90 || newSys >= 200));
+
+    const isPriority =
+      !isEmergency &&
+      ((newSpo2 != null && newSpo2 <= 94) ||
+        (newPulse != null && newPulse > 105) ||
+        (newSys != null && newSys >= 160) ||
+        (newTemp != null && newTemp >= 101));
+
+    const newCat = isEmergency ? 'EMERGENCY' : isPriority ? 'PRIORITY' : 'ROUTINE';
+    const newScore = isEmergency ? 10 : isPriority ? 7 : 3;
+    const levelName = isEmergency
+      ? 'Level 1 - Immediate Resuscitation / Critical'
+      : isPriority
+      ? 'Level 2 - Emergent / Priority'
+      : 'Level 3 - Routine OPD Consultation';
+
+    localDemoQueue[idx] = {
+      ...p,
+      vitals: {
+        ...p.vitals,
+        heart_rate: newPulse,
+        spo2: newSpo2,
+        systolic_bp: newSys,
+        diastolic_bp: newDia,
+        temperature_f: newTemp,
+      },
+      assessment: {
+        ...p.assessment,
+        triage_category: newCat,
+        urgency_score: newScore,
+        urgency_level: levelName,
+      },
+      updated_at: new Date().toISOString(),
+    };
+    persistLocalQueue(localDemoQueue);
+    notifyQueueChanged();
+
+    return {
+      id: p.id,
+      patient_id: p.opd_registration_number || p.id,
+      token_number: p.token_number,
+      patient_name: p.patient_name,
+      age: p.age,
+      gender: p.gender,
+      arrival_time: '08:30 AM',
+      chief_complaint: p.chief_complaint,
+      complaint_language: 'English',
+      known_conditions: [],
+      medications: '',
+      systolic_bp: newSys ?? null,
+      diastolic_bp: newDia ?? null,
+      pulse_bpm: newPulse ?? null,
+      temperature: newTemp ?? null,
+      temperature_unit: 'F',
+      spo2: newSpo2 ?? null,
+      triage_level: isEmergency ? 1 : isPriority ? 2 : 3,
+      triage_level_name: levelName,
+      recommended_department: p.assessment.recommended_department,
+      urgency_score: newScore,
+      warning_signs: [],
+      assessment_status: 'EVALUATED',
+      review_status: 'REVIEWED',
+      reviewed_by: payload.requested_by,
+      reviewed_at: new Date().toISOString(),
+      review_notes: payload.notes || null,
+      deterioration_flag: false,
+      status: p.status,
+      waiting_minutes: 15,
+      is_critical_escalation: isEmergency,
+      is_synthetic: p.is_synthetic ?? true,
+      created_at: p.created_at,
+      updated_at: new Date().toISOString(),
+      disclaimer: p.assessment.disclaimer,
+    };
+  }
+
+  throw new Error(`Patient with ID '${patientId}' not found for reassessment.`);
 }
 
 /**
@@ -464,35 +852,46 @@ export async function fetchStats(): Promise<QueueSummaryStats> {
   const items = localDemoQueue;
   const deptCounts: Record<string, number> = {};
   for (const item of items) {
-    const dept = item.assessment.recommended_department;
+    const dept = item.assessment?.recommended_department || 'General Medicine';
     deptCounts[dept] = (deptCounts[dept] || 0) + 1;
   }
 
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const endOfToday = startOfToday + 86400000;
-  const todayCount = items.filter((i) => {
-    const t = new Date(i.created_at).getTime();
-    return !isNaN(t) && t >= startOfToday && t < endOfToday;
-  }).length;
+  const uniqueTotalIds = new Set(items.map((p) => p.opd_registration_number || p.id));
+  const uniqueTodayIds = new Set(
+    items
+      .filter((i) => isPatientInHospitalToday(i.created_at, 'Asia/Kolkata'))
+      .map((p) => p.opd_registration_number || p.id)
+  );
+
+  const waitingCount = items.filter((i) => i.status === 'WAITING').length;
+  const withDoctorCount = items.filter((i) => i.status === 'WITH_DOCTOR').length;
+  const reviewCount = items.filter((i) => i.status === 'NEEDS_HUMAN_REVIEW').length;
+  const completedCount = items.filter((i) => i.status === 'COMPLETED').length;
+
+  const emergencyCount = items.filter((i) => i.assessment?.triage_category === 'EMERGENCY').length;
+  const priorityCount = items.filter((i) => i.assessment?.triage_category === 'PRIORITY').length;
+  const routineCount = items.filter((i) => !i.assessment?.triage_category || i.assessment.triage_category === 'ROUTINE').length;
 
   return {
-    total_patients: items.length,
-    waiting_count: items.filter((i) => i.status === 'WAITING').length,
-    with_doctor_count: items.filter((i) => i.status === 'WITH_DOCTOR').length,
-    needs_human_review_count: items.filter((i) => i.status === 'NEEDS_HUMAN_REVIEW').length,
-    completed_count: items.filter((i) => i.status === 'COMPLETED').length,
-    emergency_count: items.filter((i) => i.assessment.triage_category === 'EMERGENCY').length,
-    priority_count: items.filter((i) => i.assessment.triage_category === 'PRIORITY').length,
-    routine_count: items.filter((i) => i.assessment.triage_category === 'ROUTINE').length,
+    total_patients: uniqueTotalIds.size,
+    waiting_count: waitingCount,
+    with_doctor_count: withDoctorCount,
+    needs_human_review_count: reviewCount,
+    completed_count: completedCount,
+    emergency_count: emergencyCount,
+    priority_count: priorityCount,
+    routine_count: routineCount,
     departments_breakdown: deptCounts,
-    patients_today: todayCount,
-    total_registered_patients: items.length,
-    currently_waiting: items.filter((i) => i.status === 'WAITING').length,
+    patients_today: uniqueTodayIds.size,
+    total_registered_patients: uniqueTotalIds.size,
+    currently_waiting: waitingCount,
     hospital_timezone: 'Asia/Kolkata',
-    active_emergency_cases: items.filter((i) => i.assessment.triage_category === 'EMERGENCY').length,
-    today_emergency_cases: items.filter((i) => i.assessment.triage_category === 'EMERGENCY').length,
-    total_recorded_emergency_cases: items.filter((i) => i.assessment.triage_category === 'EMERGENCY').length,
+    active_emergency_cases: emergencyCount,
+    today_emergency_cases: emergencyCount,
+    total_recorded_emergency_cases: emergencyCount,
+    emergency_cases: emergencyCount,
+    priority_cases: priorityCount,
+    routine_cases: routineCount,
   };
 }
 

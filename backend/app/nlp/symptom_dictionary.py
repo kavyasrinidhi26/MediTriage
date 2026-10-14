@@ -35,41 +35,58 @@ CONCEPT_ROUTINE_ADMINISTRATIVE = "routine_administrative"
 SYMPTOM_DICTIONARY: Dict[str, Dict[str, List[str]]] = {
     CONCEPT_CHEST_PAIN: {
         "en": [
-            "chest pain", "chest tightness", "chest pressure", "chest heaviness",
-            "angina", "retrosternal pain", "cardiac pain", "heart pain",
+            "chest pain", "severe chest pain", "chest tightness", "chest pressure", "chest heaviness",
+            "angina", "retrosternal pain", "cardiac pain", "heart pain", "pain in chest",
+            "chest discomfort", "chest burning", "heart burning", "chestpain",
             "pain radiating to arm", "pain radiating to jaw", "crushing chest pain"
         ],
         "te_script": [
-            "గుండె నొప్పి", "ఛాతీ నొప్పి", "రొమ్ము నొప్పి", "గుండెలో నొప్పి", "ఛాతీలో మంట"
+            "గుండె నొప్పి", "ఛాతీ నొప్పి", "ఛాతి నొప్పి", "రొమ్ము నొప్పి", "గుండెలో నొప్పి",
+            "గుండెలో నొప్పిగా", "ఛాతీలో నొప్పి", "ఛాతిలో నొప్పి", "ఛాతీలో నొప్పిగా",
+            "ఛాతిలో నొప్పిగా", "ఛాతీలో మంట", "ఛాతిలో మంట", "గుండెల్లో నొప్పి", "రొమ్ములో నొప్పి"
         ],
         "te_translit": [
-            "gunde noppi", "gundelo noppi", "chhati noppi", "chhati lo noppi",
-            "chathilo noppi", "gunde baruvu", "chest lo noppi", "gundelo manta"
+            "gunde noppi", "gundelo noppi", "gundelo noppi ga", "gundelo noppiga",
+            "chhati noppi", "chhati lo noppi", "chhatilo noppi",
+            "chathilo noppi", "chathilo noppiga", "chathilo noppi ga",
+            "chaathilo noppi", "chaathilo noppiga", "chaathilo noppi ga",
+            "chaathi noppi", "chaatilo noppi", "chaatilo noppiga", "chaatilo noppi ga",
+            "chaati noppi", "gunde baruvu", "chest lo noppi", "chest noppi",
+            "gundelo manta", "gundello noppi"
         ],
     },
     CONCEPT_RESPIRATORY_DISTRESS: {
         "en": [
             "shortness of breath", "breathlessness", "difficulty breathing",
             "struggling to breathe", "dyspnea", "wheezing", "suffocation",
-            "gasping", "breathless", "asthma attack", "respiratory distress"
+            "gasping", "breathless", "asthma attack", "respiratory distress",
+            "not breathing normally", "cannot breathe normally", "unable to breathe normally",
+            "not able to breathe normally", "not breathing properly", "hard to breathe",
+            "trouble breathing", "out of breath"
         ],
         "te_script": [
-            "ఆయాసం", "శ్వాస ఆడకపోవడం", "శ్వాస తీసుకోవడంలో ఇబ్బంది", "దమ్ము", "గాలి ఆడటం లేదు"
+            "ఆయాసం", "తీవ్రమైన ఆయాసం", "ఆయాసంగా ఉంది", "శ్వాస ఆడకపోవడం",
+            "శ్వాస తీసుకోవడంలో ఇబ్బంది", "శ్వాస తీసుకోవడం కష్టం", "దమ్ము",
+            "గాలి ఆడటం లేదు", "ఊపిరి ఆడటం లేదు", "ఊపిరి అందడం లేదు"
         ],
         "te_translit": [
-            "aayasam", "ayasam", "swasa aadakapovadam", "swasa teesukovadam kastam",
-            "dammu", "swasa kastam", "gaali aadam ledu", "breath teesukolekapothunna"
+            "aayasam", "ayasam", "aayasam ga undi", "aayasanga undi", "ayasam ga undi",
+            "swasa aadakapovadam", "swasa teesukovadam kastam", "swasa teeskolekapothunna",
+            "dammu", "swasa kastam", "gaali aadam ledu", "gaali aadadam ledu",
+            "oopiri aadam ledu", "breath teesukolekapothunna", "aayasam ekkuva", "breathing kastam"
         ],
     },
     CONCEPT_FEVER: {
         "en": [
-            "fever", "high fever", "chills", "rigors", "pyrexia", "hot body", "high temperature"
+            "fever", "high fever", "chills", "rigors", "pyrexia", "hot body", "high temperature",
+            "running fever", "running temperature", "feever", "feverish"
         ],
         "te_script": [
-            "జ్వరం", "తీవ్రమైన జ్వరం", "చలి జ్వరం", "ఒళ్లు కాలడం"
+            "జ్వరం", "తీవ్రమైన జ్వరం", "చలి జ్వరం", "ఒళ్లు కాలడం", "జ్వరంగా ఉంది", "జ్వరంగా", "వేడిగా ఉంది"
         ],
         "te_translit": [
-            "jwaram", "jvaram", "chali jwaram", "ollu kaaladam", "high jwaram"
+            "jwaram", "jvaram", "chali jwaram", "chali jvaram", "ollu kaaladam", "ollu kaladam",
+            "high jwaram", "jwaram ga undi", "jwaranga undi", "jwaram vachindi", "jvaram vachindi"
         ],
     },
     CONCEPT_ALTERED_SENSORIUM: {
@@ -194,13 +211,17 @@ SYMPTOM_DICTIONARY: Dict[str, Dict[str, List[str]]] = {
     CONCEPT_JOINT_BONE_PAIN: {
         "en": [
             "joint pain", "knee pain", "backache", "back pain", "bone pain", "body pains",
-            "arthritis", "leg pain", "shoulder pain", "neck pain", "sprain"
+            "body pain", "bodyache", "muscle pain", "arthritis", "leg pain", "shoulder pain",
+            "neck pain", "sprain"
         ],
         "te_script": [
-            "కీళ్ల నొప్పులు", "మోకాళ్ల నొప్పి", "నడుము నొప్పి", "ఒళ్లు నొప్పులు", "ఎముకల నొప్పి", "కాలు నొప్పి"
+            "కీళ్ల నొప్పులు", "మోకాళ్ల నొప్పి", "నడుము నొప్పి", "ఒళ్లు నొప్పులు", "ఒళ్లు నొప్పి",
+            "ఎముకల నొప్పి", "కాలు నొప్పి", "కీళ్ల నొప్పి", "శరీరం నొప్పులు", "ఒళ్లు నొప్పులుగా ఉంది"
         ],
         "te_translit": [
-            "keella noppulu", "mokaalla noppi", "nadumu noppi", "ollu noppulu", "kaalu noppi", "knee noppi", "back noppi"
+            "keella noppulu", "mokaalla noppi", "nadumu noppi", "ollu noppulu", "ollu noppi",
+            "kaalu noppi", "kaalla noppulu", "kaalla noppi", "knee noppi", "back noppi",
+            "body pains", "body pain", "ollu noppuluga undi", "ollu noppulu ga undi"
         ],
     },
     CONCEPT_SKIN_RASH: {
@@ -265,25 +286,30 @@ SYMPTOM_DICTIONARY: Dict[str, Dict[str, List[str]]] = {
 # Negation terms by language
 NEGATIONS_ENGLISH: List[str] = [
     "no", "not", "denies", "denied", "without", "absence of", "negative for",
-    "free of", "never", "rule out", "did not have", "doesn't have", "does not have"
+    "free of", "free from", "never", "rule out", "did not have", "doesn't have",
+    "does not have", "don't have", "dont have", "haven't had", "havent had",
+    "no history of", "not having", "didnt have"
 ]
 
 NEGATIONS_TELUGU_SCRIPT: List[str] = [
-    "లేదు", "రాలేదు", "కాదు", "ఉండటం లేదు", "ఆగిపోయింది"
+    "లేదు", "రాలేదు", "కాదు", "ఉండటం లేదు", "ఉండడం లేదు", "ఆగిపోయింది", "ఏమీ లేదు", "రావటం లేదు", "నొప్పి లేదు", "జ్వరం లేదు"
 ]
 
 NEGATIONS_TELUGU_TRANSLIT: List[str] = [
-    "ledu", "ledhu", "kaadu", "kaadhu", "raaledu", "raledhu", "lekapovadam", "undatam ledu"
+    "ledu", "ledhu", "kaadu", "kaadhu", "raaledu", "raledhu", "lekapovadam",
+    "undatam ledu", "undadam ledu", "undadam ledhu", "emi ledu", "yeemi ledu",
+    "noppi ledu", "noppiledhu", "noppiledu", "jwaram ledu", "taggindi"
 ]
 
 # Uncertainty terms
 UNCERTAINTY_ENGLISH: List[str] = [
-    "maybe", "possible", "possibly", "suspected", "doubtful", "unclear if", "perhaps", "might be"
+    "maybe", "possible", "possibly", "suspected", "doubtful", "unclear if", "perhaps", "might be",
+    "not sure if", "wondering if", "could be"
 ]
 
 UNCERTAINTY_TELUGU: List[str] = [
-    "అనుకుంటున్నా", "ఉందేమో", "అనిపిస్తోంది", "సందేహం",
-    "anukuntunna", "undemo", "anipistondi", "doubt ga undi", "doubt"
+    "అనుకుంటున్నా", "ఉందేమో", "అనిపిస్తోంది", "సందేహం", "ఖచ్చితంగా తెలియదు",
+    "anukuntunna", "undemo", "anipistondi", "doubt ga undi", "doubt", "theliyadu", "teliyadu", "clear ga ledu"
 ]
 
 # Historical terms indicating past resolved episodes
@@ -296,6 +322,25 @@ HISTORICAL_TELUGU: List[str] = [
     "గతంలో", "పోయిన వారం", "నిన్న ఉండింది ఇప్పుడు తగ్గింది",
     "gathamlo", "poyina vaaram", "ninna vachindi ippudu ledu", "mundu undedi"
 ]
+
+# Clinical severity modifiers for supporting phrase extraction
+SEVERITY_MODIFIERS: Dict[str, List[str]] = {
+    "severe": [
+        "severe", "acute", "crushing", "extreme", "worst", "unbearable", "intense", "high",
+        "తీవ్రమైన", "విపరీతమైన", "చాలా",
+        "teevramaina", "vipareethamaina", "chaala", "chala", "ekkuva", "pedda"
+    ],
+    "moderate": [
+        "moderate", "medium", "considerable",
+        "మధ్యస్థ", "కొంతవరకు",
+        "madhyastha", "konthavaraku"
+    ],
+    "mild": [
+        "mild", "slight", "minor", "low",
+        "కొద్దిగా", "స్వల్ప", "చిన్న",
+        "kodhiga", "kodiga", "swalpa", "chinna"
+    ],
+}
 
 # Red flag concepts for priority safety rules
 RED_FLAG_CONCEPTS: Set[str] = {

@@ -19,11 +19,13 @@ from app.ml.schema import (
 )
 from app.schemas import RedFlagChecklist
 from app.triage_engine import determine_department_with_reason
+from app.nlp.complaint_processor import process_complaint
 from app.safety_rules import (
     evaluate_data_quality,
     evaluate_clinical_escalation_rules,
     apply_safety_override,
     SAFETY_RULE_VERSION,
+    CONFIGURED_SAFETY_RULES,
     DataQualityStatus,
     RuleAcuity,
 )
@@ -105,6 +107,19 @@ class TriageInferenceService:
             confidence_threshold = get_settings().CONFIDENCE_ABSTENTION_THRESHOLD
 
         known_conditions = known_conditions or []
+        complaint_res = process_complaint(chief_complaint)
+
+        def _attach_nlp(d: Dict[str, Any]) -> Dict[str, Any]:
+            d["detected_language"] = complaint_res.detected_language.value
+            d["extracted_symptoms"] = [s.model_dump() for s in complaint_res.extracted_symptoms]
+            d["positive_concepts"] = complaint_res.positive_concepts
+            d["negated_concepts"] = complaint_res.negated_concepts
+            d["uncertain_concepts"] = complaint_res.uncertain_concepts
+            d["original_complaint"] = complaint_res.original_complaint
+            d["requires_complaint_review"] = complaint_res.requires_nurse_review
+            d["complaint_review_reason"] = complaint_res.review_reason
+            d["rules_evaluated"] = list(CONFIGURED_SAFETY_RULES)
+            return d
 
         # Step 1 & 2: Independent Safety & Data Quality Checks
         dq_issues = evaluate_data_quality(
@@ -181,72 +196,111 @@ class TriageInferenceService:
             red_flags=RedFlagChecklist(),
         )
 
-        # Step 3: Handle Critical Clinical Rules & Blocking Data Errors
-        if has_critical_clinical_rule:
-            # SAFETY INVARIANT: Critical emergency rules ALWAYS take absolute precedence!
-            # Clerical vital entry errors must NEVER suppress or downgrade an emergency complaint.
-            explanation = (
-                "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag or acute emergency complaint triggered. "
-                "Emergency resuscitation triage assigned."
-            )
-            if has_blocking_data_error:
-                explanation += " Note: Vital sign data entry errors flagged for concurrent bedside nurse verification."
-
-            return {
-                "triage_level": 1,
-                "triage_level_name": TRIAGE_5_TO_NAME[1],
-                "raw_model_level": 1,
-                "raw_model_name": TRIAGE_5_TO_NAME[1],
-                "override_applied": True,
-                "recommended_department": "Emergency / Casualty",
-                "department_reason": "Emergency clinical safety override: patient routed immediately to emergency resuscitation.",
-                "requires_department_review": False,
-                "detected_red_flags": red_flag_symptoms,
-                "observed_facts": observed_facts,
-                "inferred_risks": inferred_risks,
-                "model_explanation": explanation,
-                "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts] + [i.code for i in dq_issues if i.is_blocking],
-                "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts] + [i.message for i in dq_issues if i.is_blocking],
-                "missing_data_warnings": missing_warnings,
-                "invalid_data_warnings": invalid_warnings,
-                "human_review_required": True,
-                "abstention_status": "SAFETY_OVERRIDE_WITH_DATA_WARNING" if has_blocking_data_error else "SAFETY_OVERRIDE",
-                "model_version": model_version,
-                "rules_version": rules_version,
-                "model_emergency_flag": True,
-                "clinical_disclaimer": "ASSISTIVE DECISION SUPPORT ONLY: Red flag alert overrides lower acuity. An emergency flag does not constitute a confirmed medical diagnosis. Immediate emergency physician evaluation required.",
-            }
-
+        # Step 3: Handle Blocking Data Errors (with Emergency Override Protection)
         if has_blocking_data_error:
-            return {
+            if has_critical_clinical_rule:
+                # Critical emergency rules ALWAYS take absolute precedence even with clerical errors!
+                explanation = (
+                    "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag or acute emergency complaint triggered. "
+                    "Emergency resuscitation triage assigned. Note: Vital sign data entry errors flagged for concurrent bedside nurse verification."
+                )
+                return _attach_nlp({
+                    "triage_level": 1,
+                    "triage_level_name": TRIAGE_5_TO_NAME[1],
+                    "raw_model_level": None,
+                    "raw_model_name": None,
+                    "model_confidence": None,
+                    "override_applied": True,
+                    "recommended_department": "Emergency / Casualty",
+                    "department_reason": "Emergency clinical safety override: patient routed immediately to emergency resuscitation.",
+                    "requires_department_review": False,
+                    "detected_red_flags": red_flag_symptoms,
+                    "observed_facts": observed_facts,
+                    "inferred_risks": inferred_risks,
+                    "model_explanation": explanation,
+                    "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts] + [i.code for i in dq_issues if i.is_blocking],
+                    "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts] + [i.message for i in dq_issues if i.is_blocking],
+                    "missing_data_warnings": missing_warnings,
+                    "invalid_data_warnings": invalid_warnings,
+                    "human_review_required": True,
+                    "abstention_status": "SAFETY_OVERRIDE_WITH_DATA_WARNING",
+                    "decision_source": "CLINICAL_SAFETY_OVERRIDE",
+                    "model_available": False,
+                    "model_version": model_version,
+                    "rules_version": rules_version,
+                    "model_emergency_flag": True,
+                    "clinical_disclaimer": "ASSISTIVE DECISION SUPPORT ONLY: Red flag alert overrides lower acuity. Immediate emergency physician evaluation required.",
+                })
+            else:
+                return _attach_nlp({
+                    "triage_level": 2,  # Priority holding status: never placed at end of queue
+                    "triage_level_name": "Cannot assess — send to nurse now.",
+                    "raw_model_level": None,
+                    "raw_model_name": None,
+                    "model_confidence": None,
+                    "override_applied": False,
+                    "recommended_department": dept_enum.value,
+                    "department_reason": dept_reason,
+                    "requires_department_review": True,
+                    "detected_red_flags": red_flag_symptoms,
+                    "observed_facts": observed_facts,
+                    "inferred_risks": inferred_risks,
+                    "model_explanation": "Model execution held: Input data contains contradictory or out-of-range measurements requiring immediate nurse verification.",
+                    "triggered_safety_rule_ids": [i.code for i in dq_issues if i.is_blocking],
+                    "safety_rule_explanations": [i.message for i in dq_issues if i.is_blocking],
+                    "missing_data_warnings": missing_warnings,
+                    "invalid_data_warnings": invalid_warnings,
+                    "human_review_required": True,
+                    "abstention_status": "ABSTAINED_DATA_QUALITY_HOLD",
+                    "decision_source": "SAFETY_ABSTENTION_HOLD",
+                    "model_available": False,
+                    "model_version": model_version,
+                    "rules_version": rules_version,
+                    "model_emergency_flag": False,
+                    "clinical_disclaimer": "Cannot assess — send to nurse now. Safety protocol active: Data quality hold requires manual nurse verification.",
+                })
+
+        # Step 3b: Handle Unreliable or Ambiguous Complaint Text (if not overridden by a critical clinical rule)
+        if complaint_res.requires_nurse_review and not has_critical_clinical_rule:
+            return _attach_nlp({
                 "triage_level": 2,  # Priority holding status: never placed at end of queue
-                "triage_level_name": "Cannot assess — send to nurse now.",
+                "triage_level_name": "Cannot assess safely — send to nurse now.",
+                "raw_model_level": None,
+                "raw_model_name": None,
+                "model_confidence": None,
+                "override_applied": False,
                 "recommended_department": dept_enum.value,
                 "department_reason": dept_reason,
                 "requires_department_review": True,
                 "detected_red_flags": red_flag_symptoms,
                 "observed_facts": observed_facts,
                 "inferred_risks": inferred_risks,
-                "model_explanation": "Model execution held: Input data contains contradictory or out-of-range measurements requiring immediate nurse verification.",
-                "triggered_safety_rule_ids": [i.code for i in dq_issues if i.is_blocking],
-                "safety_rule_explanations": [i.message for i in dq_issues if i.is_blocking],
+                "model_explanation": f"Model execution held: {complaint_res.review_reason}",
+                "triggered_safety_rule_ids": ["WARN-RULE-COMPLAINT-REVIEW"],
+                "safety_rule_explanations": [complaint_res.review_reason],
                 "missing_data_warnings": missing_warnings,
                 "invalid_data_warnings": invalid_warnings,
                 "human_review_required": True,
-                "abstention_status": "ABSTAINED_DATA_QUALITY_HOLD",
+                "abstention_status": "ABSTAINED_COMPLAINT_UNCERTAIN",
+                "decision_source": "SAFETY_ABSTENTION_HOLD",
+                "model_available": False,
                 "model_version": model_version,
                 "rules_version": rules_version,
                 "model_emergency_flag": False,
-                "clinical_disclaimer": "Cannot assess — send to nurse now. Safety protocol active: Data quality hold requires manual nurse verification.",
-            }
+                "clinical_disclaimer": "Cannot assess safely — send to nurse now. Complaint language is unconfirmed, contradictory, or ambiguous. Nurse review required.",
+            })
 
         # Step 4: Check if Model Artifacts are Available
         if not self.is_loaded or self.preprocessor is None or self.model_triage is None:
             # Model is unavailable: Fallback cleanly to safety rules and clinical baseline without inventing predictions
             fallback_level = 1 if has_critical_clinical_rule else (2 if has_priority_rule else 3)
-            return {
+            return _attach_nlp({
                 "triage_level": fallback_level,
                 "triage_level_name": TRIAGE_3_TO_NAME.get(fallback_level, f"Level {fallback_level}"),
+                "raw_model_level": None,
+                "raw_model_name": None,
+                "model_confidence": None,
+                "override_applied": bool(fallback_level == 1 and not has_critical_clinical_rule),
                 "recommended_department": "Emergency / Casualty" if fallback_level == 1 else dept_enum.value,
                 "department_reason": "Emergency clinical safety override" if fallback_level == 1 else dept_reason,
                 "requires_department_review": requires_dept_review,
@@ -259,12 +313,14 @@ class TriageInferenceService:
                 "missing_data_warnings": missing_warnings,
                 "invalid_data_warnings": invalid_warnings,
                 "human_review_required": True,
-                "abstention_status": "ABSTAINED_MODEL_UNAVAILABLE",
+                "abstention_status": "SAFETY_OVERRIDE" if has_critical_clinical_rule else "ABSTAINED_MODEL_UNAVAILABLE",
+                "decision_source": "CLINICAL_SAFETY_OVERRIDE" if has_critical_clinical_rule else "DETERMINISTIC_SAFETY_ENGINE",
+                "model_available": False,
                 "model_version": "none",
                 "rules_version": rules_version,
-                "model_emergency_flag": False,
+                "model_emergency_flag": bool(fallback_level == 1),
                 "clinical_disclaimer": "Model unavailable. Assessment generated strictly from rule-based safety criteria.",
-            }
+            })
 
         # Step 5: Format Features for ML Model
         temp_f = temperature
@@ -323,7 +379,7 @@ class TriageInferenceService:
             # Model prediction exception -> Fall back safely to safety rules
             fallback_level = 1 if has_critical_clinical_rule else (2 if has_priority_rule else 2)
             fallback_name = TRIAGE_5_TO_NAME.get(fallback_level, f"Level {fallback_level}")
-            return {
+            return _attach_nlp({
                 "triage_level": fallback_level,
                 "triage_level_name": f"{fallback_name} (Model Exception)" if has_critical_clinical_rule else "Cannot assess — send to nurse now.",
                 "recommended_department": "Emergency / Casualty" if fallback_level == 1 else dept_enum.value,
@@ -343,29 +399,40 @@ class TriageInferenceService:
                 "invalid_data_warnings": invalid_warnings,
                 "human_review_required": True,
                 "abstention_status": "SAFETY_OVERRIDE" if has_critical_clinical_rule else "ABSTAINED_INFERENCE_ERROR",
+                "decision_source": "CLINICAL_SAFETY_OVERRIDE" if has_critical_clinical_rule else "SAFETY_ABSTENTION_HOLD",
+                "model_available": False,
                 "model_version": model_version,
                 "rules_version": rules_version,
-                "model_emergency_flag": False,
+                "model_emergency_flag": bool(fallback_level == 1),
                 "clinical_disclaimer": "Cannot assess — send to nurse now. Inference failed safely; manual clinical assessment required.",
-            }
+            })
 
         # Step 6 & 7: Apply Approved Clinical Escalation Policy and Handle Model Confidence
         # SAFETY REQUIREMENT: Validated critical safety rule MUST OVERRIDE lower-urgency model prediction or model uncertainty!
         if has_critical_clinical_rule:
             # Critical emergency rules ALWAYS take precedence over ML predictions and confidence thresholds.
             # Never allow a low-confidence or routine model suggestion to downgrade an emergency patient.
-            override_applied = (raw_ml_level > 1)
+            override_applied = (raw_ml_level != 1)
             final_level = 1
             abstention_status = "SAFETY_OVERRIDE"
             pred_dept = "Emergency / Casualty"
             human_review = True
             model_emerg_flag = True
-            explanation = "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag triggered. Overrode machine-learning recommendation to Level 1 / Emergency."
+            raw_name = TRIAGE_5_TO_NAME.get(raw_ml_level, f"Level {raw_ml_level}")
+            explanation = (
+                f"🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag triggered. "
+                f"Elevated triage from ML recommendation ({raw_name}) to Level 1 / Emergency."
+                if override_applied else
+                "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag confirmed Level 1 Emergency resuscitation triage."
+            )
         elif pred_confidence < confidence_threshold:
             # Uncertain model without critical emergency rule: Abstain to Nurse (never Routine / end of queue)
-            return {
+            return _attach_nlp({
                 "triage_level": 2,
                 "triage_level_name": "Cannot assess — send to nurse now.",
+                "raw_model_level": raw_ml_level,
+                "raw_model_name": TRIAGE_5_TO_NAME.get(raw_ml_level, f"Level {raw_ml_level}") if raw_ml_level else None,
+                "model_confidence": pred_confidence,
                 "recommended_department": pred_dept,
                 "department_reason": dept_reason,
                 "requires_department_review": True,
@@ -379,11 +446,13 @@ class TriageInferenceService:
                 "invalid_data_warnings": invalid_warnings,
                 "human_review_required": True,
                 "abstention_status": "ABSTAINED_LOW_CONFIDENCE",
+                "decision_source": "SAFETY_ABSTENTION_HOLD",
+                "model_available": True,
                 "model_version": model_version,
                 "rules_version": rules_version,
                 "model_emergency_flag": model_emerg_flag,
                 "clinical_disclaimer": "Cannot assess — send to nurse now. Model confidence insufficient. Clinician evaluation mandatory.",
-            }
+            })
         elif has_priority_rule and raw_ml_level > 2:
             override_applied = True
             final_level = 2
@@ -409,12 +478,15 @@ class TriageInferenceService:
         )
         final_dept_review = False if final_level == 1 else requires_dept_review
 
-        return {
+        return _attach_nlp({
             "triage_level": final_level,
             "triage_level_name": triage_name,
             "raw_model_level": raw_ml_level,
             "raw_model_name": TRIAGE_5_TO_NAME.get(raw_ml_level, f"Level {raw_ml_level}") if raw_ml_level else None,
+            "model_confidence": pred_confidence,
             "override_applied": override_applied,
+            "decision_source": "CLINICAL_SAFETY_OVERRIDE" if (has_critical_clinical_rule or override_applied) else "MACHINE_LEARNING_MODEL",
+            "model_available": True,
             "recommended_department": pred_dept,
             "department_reason": final_dept_reason,
             "requires_department_review": final_dept_review,
@@ -436,4 +508,4 @@ class TriageInferenceService:
                 "An emergency flag or triage category from the model alone does NOT constitute a confirmed medical diagnosis. "
                 "All patient assignments remain subject to physician bedside review."
             ),
-        }
+        })

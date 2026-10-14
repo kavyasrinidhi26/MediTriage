@@ -103,7 +103,7 @@ def test_empty_emergency_evaluation_set_handling():
     assert metrics["emergency_recall_numerator"] == 0
     assert metrics["emergency_recall_denominator"] == 0
     assert metrics["is_emergency_set_empty"] is True
-    assert "N/A" in metrics["emergency_recall_display"]
+    assert "Insufficient data" in metrics["emergency_recall_display"] or "N/A" in metrics["emergency_recall_display"]
 
     # Official weighted score must handle empty emergency set gracefully
     score_info = metrics["official_weighted_score"]
@@ -310,3 +310,62 @@ def test_feature_sanitization_forbids_hidden_labels():
     for forbidden in FORBIDDEN_COLUMNS:
         assert forbidden not in NUMERICAL_FEATURE_COLUMNS
         assert forbidden not in CATEGORICAL_FEATURE_COLUMNS
+
+
+def test_over_triage_and_false_positive_calculation():
+    """
+    Verifies calculation of emergency false positives and over-triage rate
+    with non-emergency cases as denominator.
+    """
+    # 6 cases:
+    # 0, 1: True emergency (1), predicted as 1 -> TP = 2
+    # 2: Non-emergency (2), predicted as 1 -> FP = 1 (Over-triage)
+    # 3: Non-emergency (3), predicted as 1 -> FP = 1 (Over-triage)
+    # 4: Non-emergency (4), predicted as 4 -> Correct routine = 1
+    # 5: Non-emergency (5), predicted as 5 -> Correct routine = 1
+    y_true = np.array([1, 1, 2, 3, 4, 5])
+    y_pred = np.array([1, 1, 1, 1, 4, 5])
+
+    metrics = compute_triage_metrics(
+        y_true=y_true,
+        y_pred=y_pred,
+        labels=[1, 2, 3, 4, 5],
+        emergency_level=1,
+    )
+
+    assert metrics["emergency_cases_total"] == 2
+    assert metrics["non_emergency_cases_total"] == 4
+    assert metrics["emergency_recall_sensitivity"] == 1.0
+    assert metrics["emergency_false_negatives"] == 0
+    assert metrics["emergency_false_positives"] == 2  # Cases 2 and 3
+    assert metrics["over_triage_rate"] == 2 / 4  # 50.0%
+    assert "2/4" in metrics["over_triage_display"]
+    assert metrics["correct_predictions_count"] == 4  # Cases 0, 1, 4, 5
+    assert metrics["incorrect_predictions_count"] == 2  # Cases 2, 3
+
+
+def test_abstention_definitive_cases_and_breakdown():
+    """
+    Verifies calculation of definitive cases, nurse referrals, and emergency
+    breakdown among abstained cases.
+    """
+    y_true = np.array([1, 1, 2, 3, 4, 5])
+    y_pred = np.array([1, 2, 2, 3, 4, 5])
+    abstained_mask = np.array([False, True, True, False, False, False])
+
+    abst = compute_abstention_metrics(
+        y_true=y_true,
+        y_pred=y_pred,
+        abstained_mask=abstained_mask,
+        emergency_level=1,
+    )
+
+    assert abst["total_cases"] == 6
+    assert abst["abstention_count"] == 2
+    assert abst["definitive_cases_count"] == 4
+    assert abst["cases_referred_for_nurse_review"] == 2
+    assert abst["emergencies_in_abstained_count"] == 1  # Case 1
+    assert abst["non_emergencies_in_abstained_count"] == 1  # Case 2
+    assert abst["autonomous_emergency_recall"] == 0.5  # 1 autonomous TP / 2 total emergencies
+    assert abst["autonomous_emergency_recall_denominator"] == 2
+    assert "1/2" in abst["autonomous_emergency_recall_display"]

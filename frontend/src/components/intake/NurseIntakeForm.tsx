@@ -390,6 +390,102 @@ export const NurseIntakeForm: React.FC<NurseIntakeFormProps> = ({ onSuccess, onR
         <div className="presets-chips">
           <button
             type="button"
+            className="preset-chip preset-critical"
+            onClick={() =>
+              applyPreset({
+                patient_name: 'శివ రావు (Shiva Rao)',
+                age: 52,
+                sex: 'Male',
+                chief_complaint: 'నాకు ఛాతిలో నొప్పిగా ఉంది',
+                complaint_language: 'Telugu',
+                known_conditions: ['Hypertension'],
+                medications: 'Amlodipine 5mg',
+                systolic_bp: 124,
+                diastolic_bp: 82,
+                pulse_bpm: 82,
+                temperature: 98.6,
+                temperature_unit: 'F',
+                spo2: 98,
+              })
+            }
+          >
+            Telugu Script: నాకు ఛాతిలో నొప్పిగా ఉంది
+          </button>
+
+          <button
+            type="button"
+            className="preset-chip preset-critical"
+            onClick={() =>
+              applyPreset({
+                patient_name: 'Anil Kumar',
+                age: 55,
+                sex: 'Male',
+                chief_complaint: 'naaku chaathilo noppi ga undi',
+                complaint_language: 'Telugu',
+                known_conditions: [],
+                medications: 'None',
+                systolic_bp: 120,
+                diastolic_bp: 80,
+                pulse_bpm: 80,
+                temperature: 98.4,
+                temperature_unit: 'F',
+                spo2: 97,
+              })
+            }
+          >
+            Transliteration: naaku chaathilo noppi ga undi
+          </button>
+
+          <button
+            type="button"
+            className="preset-chip"
+            onClick={() =>
+              applyPreset({
+                patient_name: 'Kavitha Devi',
+                age: 32,
+                sex: 'Female',
+                chief_complaint: 'Naku fever undi and body pains.',
+                complaint_language: 'Mixed (Telugu & English)',
+                known_conditions: [],
+                medications: 'Paracetamol 650mg',
+                systolic_bp: 118,
+                diastolic_bp: 76,
+                pulse_bpm: 84,
+                temperature: 101.4,
+                temperature_unit: 'F',
+                spo2: 99,
+              })
+            }
+          >
+            Mixed: Naku fever undi and body pains.
+          </button>
+
+          <button
+            type="button"
+            className="preset-chip"
+            onClick={() =>
+              applyPreset({
+                patient_name: 'Ramesh Reddy',
+                age: 45,
+                sex: 'Male',
+                chief_complaint: 'mild cough for 2 days, no chest pain, I do not have fever',
+                complaint_language: 'English',
+                known_conditions: [],
+                medications: 'Cough syrup',
+                systolic_bp: 120,
+                diastolic_bp: 80,
+                pulse_bpm: 72,
+                temperature: 98.6,
+                temperature_unit: 'F',
+                spo2: 99,
+              })
+            }
+          >
+            Negation: no chest pain
+          </button>
+
+          <button
+            type="button"
             className="preset-chip"
             onClick={() =>
               applyPreset({

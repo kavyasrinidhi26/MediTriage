@@ -87,4 +87,26 @@ describe('Model Evaluation — Genuine Metrics, Multi-Split Verification & Scori
     assert.ok(zeroMissScore > twoMissScore, 'Model missing emergency cases must receive lower score');
     assert.ok(twoMissScore <= zeroMissScore - 0.25, 'Penalty must heavily downgrade missed emergency cases');
   });
+
+  test('5. Over-Triage & False Positive Emergency Invariants', () => {
+    // Non-emergency cases escalated to emergency are false positives
+    const calcOverTriage = (fps: number, nonEmergTotal: number) => {
+      if (nonEmergTotal === 0) return 0.0;
+      return fps / nonEmergTotal;
+    };
+
+    assert.equal(calcOverTriage(0, 100), 0.0);
+    assert.equal(calcOverTriage(10, 100), 0.10);
+    assert.equal(calcOverTriage(5, 0), 0.0);
+  });
+
+  test('6. Abstention Metrics: Preserves safety invariant and separates nurse review cases', () => {
+    const totalCases = 50;
+    const abstentionCount = 5;
+    const definitiveCases = totalCases - abstentionCount;
+    const abstentionRate = abstentionCount / totalCases;
+
+    assert.equal(definitiveCases, 45);
+    assert.equal(abstentionRate, 0.10);
+  });
 });

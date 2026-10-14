@@ -13,29 +13,49 @@ import {
   Wind,
   Gauge,
   Thermometer,
+  Trash2,
 } from 'lucide-react';
 
 interface PatientDetailModalProps {
   patient: PatientQueueItem | null;
   onClose: () => void;
   onUpdateStatus: (patientId: string, newStatus: QueueStatus) => void;
+  onUpdateCategory?: (patientId: string, newCategory: 'EMERGENCY' | 'PRIORITY' | 'ROUTINE') => void;
+  onDeletePatient?: (patientId: string) => void;
 }
 
 export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   patient,
   onClose,
   onUpdateStatus,
+  onUpdateCategory,
+  onDeletePatient,
 }) => {
   if (!patient) return null;
 
-  const isEmergency = patient.assessment.triage_category === 'EMERGENCY';
-  const isPriority = patient.assessment.triage_category === 'PRIORITY';
+  const currentCat = patient.assessment?.triage_category || 'ROUTINE';
+  const isEmergency = currentCat === 'EMERGENCY';
+  const isPriority = currentCat === 'PRIORITY';
 
   const categoryColorClass = isEmergency
     ? 'modal-header-emergency'
     : isPriority
     ? 'modal-header-priority'
     : 'modal-header-routine';
+
+  const handleCategoryChange = (cat: 'EMERGENCY' | 'PRIORITY' | 'ROUTINE') => {
+    if (onUpdateCategory && cat !== currentCat) {
+      onUpdateCategory(patient.id, cat);
+      onClose();
+    }
+  };
+
+  const handleDelete = () => {
+    if (window.confirm(`Are you sure you want to delete patient record for ${patient.patient_name || patient.opd_registration_number}? This will permanently remove them from the database.`)) {
+      onDeletePatient?.(patient.id);
+      onClose();
+    }
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
@@ -194,6 +214,100 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Triage Category & Acuity Override Section */}
+        <div
+          style={{
+            padding: '12px 20px',
+            background: 'var(--navy-50, #f8fafc)',
+            borderTop: '1px solid var(--navy-200, #e2e8f0)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-700, #334155)' }}>
+              Change Triage Category:
+            </span>
+            <div style={{ display: 'inline-flex', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('EMERGENCY')}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '0.725rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: currentCat === 'EMERGENCY' ? '2px solid #ef4444' : '1px solid #fecaca',
+                  background: currentCat === 'EMERGENCY' ? '#ef4444' : '#fef2f2',
+                  color: currentCat === 'EMERGENCY' ? '#fff' : '#991b1b',
+                }}
+              >
+                Critical (Emergency)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('PRIORITY')}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '0.725rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: currentCat === 'PRIORITY' ? '2px solid #f59e0b' : '1px solid #fde68a',
+                  background: currentCat === 'PRIORITY' ? '#f59e0b' : '#fffbeb',
+                  color: currentCat === 'PRIORITY' ? '#fff' : '#92400e',
+                }}
+              >
+                Priority
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('ROUTINE')}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '0.725rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: currentCat === 'ROUTINE' ? '2px solid #10b981' : '1px solid #bbf7d0',
+                  background: currentCat === 'ROUTINE' ? '#10b981' : '#f0fdf4',
+                  color: currentCat === 'ROUTINE' ? '#fff' : '#166534',
+                }}
+              >
+                Routine
+              </button>
+            </div>
+          </div>
+
+          {onDeletePatient && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                background: 'transparent',
+                border: '1px solid #fecaca',
+                borderRadius: '6px',
+                color: '#dc2626',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+              title="Delete patient record permanently from database"
+            >
+              <Trash2 size={13} />
+              <span>Delete Record</span>
+            </button>
+          )}
+        </div>
+
         {/* Modal Footer & Status Quick Controls */}
         <div className="modal-footer">
           <div className="footer-status-indicator">
@@ -201,6 +315,21 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
           </div>
 
           <div className="footer-action-buttons">
+            {patient.status !== 'WAITING' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateStatus(patient.id, 'WAITING');
+                  onClose();
+                }}
+                className="btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+              >
+                <Clock size={15} />
+                <span>Return to Waiting</span>
+              </button>
+            )}
+
             {patient.status !== 'WITH_DOCTOR' && (
               <button
                 type="button"

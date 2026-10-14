@@ -91,6 +91,14 @@ class TriageAssessmentResult(BaseModel):
     recommended_action: str
     max_recommended_wait_minutes: int
     assessment_timestamp: datetime
+    detected_language: Optional[str] = Field(None, description="Supported detected language format")
+    extracted_symptoms: List[Dict[str, Any]] = Field(default_factory=list, description="Extracted clinical symptom concepts with context and supporting phrases")
+    positive_concepts: List[str] = Field(default_factory=list, description="Active clinical findings extracted from complaint")
+    negated_concepts: List[str] = Field(default_factory=list, description="Explicitly denied symptoms extracted from complaint")
+    uncertain_concepts: List[str] = Field(default_factory=list, description="Symptoms with clinical uncertainty")
+    original_complaint: Optional[str] = Field(None, description="Original complaint preserved verbatim")
+    requires_complaint_review: bool = Field(False, description="Flag indicating complaint ambiguity, unsupported dialect, or contradiction")
+    complaint_review_reason: Optional[str] = Field(None, description="Nurse clarification rationale for complaint")
     disclaimer: str = (
         "PROTOTYPE DECISION-SUPPORT NOTICE: This automated assessment provides rule-based clinical "
         "triage prioritization assistance for hospital intake queues. It does not constitute a "
@@ -120,6 +128,11 @@ class PatientQueueItem(BaseModel):
 class QueueStatusUpdate(BaseModel):
     status: QueueStatus
     doctor_room: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class QueueCategoryUpdate(BaseModel):
+    category: TriageCategory
     notes: Optional[str] = None
 
 
@@ -262,6 +275,14 @@ class AssessmentResponse(BaseModel):
     rules_version: str
     model_emergency_flag: bool = False
     clinical_disclaimer: str
+    detected_language: Optional[str] = Field(None, description="Supported detected language format")
+    extracted_symptoms: List[Dict[str, Any]] = Field(default_factory=list, description="Extracted clinical symptom concepts with context and supporting phrases")
+    positive_concepts: List[str] = Field(default_factory=list, description="Active clinical findings extracted from complaint")
+    negated_concepts: List[str] = Field(default_factory=list, description="Explicitly denied symptoms extracted from complaint")
+    uncertain_concepts: List[str] = Field(default_factory=list, description="Symptoms with clinical uncertainty")
+    original_complaint: Optional[str] = Field(None, description="Original complaint preserved verbatim")
+    requires_complaint_review: bool = Field(False, description="Flag indicating complaint ambiguity, unsupported dialect, or contradiction")
+    complaint_review_reason: Optional[str] = Field(None, description="Nurse clarification rationale for complaint")
 
 
 class QueueReviewRequest(BaseModel):

@@ -213,3 +213,67 @@ class EmergencyAuditModel(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
+
+class AssessmentAuditModel(Base):
+    """
+    Dedicated audit log recording every triage assessment evaluation,
+    preserving original ML recommendations, safety rule overrides,
+    nurse corrections, and decision sequence without data loss.
+    """
+    __tablename__ = "assessment_audit_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    assessment_id = Column(String(64), index=True, nullable=False)
+    patient_id = Column(String(64), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Input & Complaint
+    chief_complaint = Column(Text, nullable=False)
+    detected_language = Column(String(64), nullable=True)
+    extracted_symptoms = Column(Text, default="[]", nullable=False)  # JSON
+    positive_concepts = Column(Text, default="[]", nullable=False)   # JSON
+    negated_concepts = Column(Text, default="[]", nullable=False)    # JSON
+    uncertain_concepts = Column(Text, default="[]", nullable=False)  # JSON
+    complaint_review_required = Column(Boolean, default=False, nullable=False)
+    complaint_review_reason = Column(Text, nullable=True)
+
+    # Input Vitals & Validation
+    vitals_snapshot = Column(Text, default="{}", nullable=False)     # JSON of vital readings
+    missing_vital_signs = Column(Text, default="[]", nullable=False) # JSON
+    invalid_data_warnings = Column(Text, default="[]", nullable=False) # JSON
+
+    # Deterministic Safety Rules
+    rules_version = Column(String(64), nullable=False)
+    rules_evaluated = Column(Text, default="[]", nullable=False)    # JSON
+    triggered_rule_ids = Column(Text, default="[]", nullable=False)  # JSON
+    safety_rule_explanations = Column(Text, default="[]", nullable=False) # JSON
+    override_applied = Column(Boolean, default=False, nullable=False)
+
+    # ML Model Recommendation (Preserved verbatim even if overridden)
+    model_version = Column(String(64), nullable=True)
+    raw_model_level = Column(Integer, nullable=True)
+    raw_model_name = Column(String(64), nullable=True)
+    model_confidence = Column(Float, nullable=True)
+    model_emergency_flag = Column(Boolean, default=False, nullable=False)
+    model_explanation = Column(Text, nullable=True)
+    model_available = Column(Boolean, default=False, nullable=False)
+
+    # Final Automated Acuity Decision
+    final_triage_level = Column(Integer, nullable=False)
+    final_triage_name = Column(String(64), nullable=False)
+    recommended_department = Column(String(64), nullable=False)
+    department_reason = Column(Text, nullable=True)
+    abstention_status = Column(String(64), nullable=False)
+    decision_source = Column(String(64), nullable=False)  # MACHINE_LEARNING_MODEL, CLINICAL_SAFETY_OVERRIDE, NURSE_CLINICAL_DECISION, SAFETY_ABSTENTION_HOLD
+    detected_red_flags = Column(Text, default="[]", nullable=False)  # JSON
+
+    # Nurse / Clinician Review & Reassessment Corrections
+    nurse_reviewed = Column(Boolean, default=False, nullable=False)
+    reviewed_by = Column(String(120), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    review_notes = Column(Text, nullable=True)
+    nurse_override_level = Column(Integer, nullable=True)
+    nurse_override_name = Column(String(64), nullable=True)
+    previous_triage_level = Column(Integer, nullable=True)
+
+

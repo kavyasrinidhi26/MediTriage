@@ -418,6 +418,17 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
         max_wait = 30
         action = "Priority OPD token queue; physician evaluation targeted within 30 minutes."
         clinical_rationale.append("Level 3 assigned: Moderate physiological derangement or acute systemic illness requiring physician evaluation.")
+    elif not is_level_1 and complaint_res.requires_nurse_review:
+        # SAFETY INVARIANT: If the complaint is unsupported, ambiguous, contradictory, or uncertain,
+        # never classify as Routine OPD. Place in Priority Holding with clear nurse review mandate.
+        category = TriageCategory.PRIORITY
+        urgency_label = "Cannot assess safely — send to nurse now."
+        triage_level = 2
+        triage_level_name = "Cannot assess safely — send to nurse now."
+        urgency_score = 6
+        max_wait = 15
+        action = "Cannot assess safely — send to nurse now. Immediate bedside nurse verification required."
+        clinical_rationale.append(f"Cannot assess safely — send to nurse now: {complaint_res.review_reason}")
     elif is_level_5:
         category = TriageCategory.ROUTINE
         urgency_label = "BLUE - NON-URGENT / PRIMARY CARE"
@@ -442,7 +453,7 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
         clinical_rationale.extend([f"Red Flag: {rf_item}" for rf_item in red_flags])
     if vital_abnormalities:
         clinical_rationale.extend([f"Vital Alert: {v_item}" for v_item in vital_abnormalities])
-    if complaint_res.requires_nurse_review and complaint_res.review_reason:
+    if complaint_res.requires_nurse_review and complaint_res.review_reason and not (not is_level_1 and complaint_res.requires_nurse_review):
         clinical_rationale.append(f"Language Notice: {complaint_res.review_reason}")
 
     # 5. Determine Recommended Specialty Department with Clinical Reason
@@ -453,6 +464,8 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
         red_flags=rf,
         positive_concepts=positive_concepts,
     )
+    if complaint_res.requires_nurse_review:
+        requires_dept_review = True
 
     return TriageAssessmentResult(
         triage_category=category,
@@ -471,4 +484,12 @@ def evaluate_triage(request: PatientTriageRequest) -> TriageAssessmentResult:
         recommended_action=action,
         max_recommended_wait_minutes=max_wait,
         assessment_timestamp=datetime.now(timezone.utc),
+        detected_language=complaint_res.detected_language.value,
+        extracted_symptoms=[s.model_dump() for s in complaint_res.extracted_symptoms],
+        positive_concepts=complaint_res.positive_concepts,
+        negated_concepts=complaint_res.negated_concepts,
+        uncertain_concepts=complaint_res.uncertain_concepts,
+        original_complaint=complaint_res.original_complaint,
+        requires_complaint_review=complaint_res.requires_nurse_review,
+        complaint_review_reason=complaint_res.review_reason,
     )
