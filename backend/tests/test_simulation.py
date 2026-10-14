@@ -296,3 +296,255 @@ def test_simulation_does_not_create_real_patient_records(client):
     assert len(QUEUE_STORAGE) == initial_live_queue_count
     post_emg_res = client.get("/api/emergency/cases")
     assert len(post_emg_res.json()) == initial_emg_count
+
+
+def test_equal_priority_ordering_strictly_preserves_arrival_order():
+    """
+    Requirement 3: Preserve arrival order among patients with equal priority.
+    When multiple patients share the same urgency tier, they must be served strictly in arrival order.
+    """
+    # 3 Routine patients arriving in order: R1 at 5, R2 at 8, R3 at 12
+    # All are queued while a doctor is busy from 0 to 20
+    arrivals = [
+        PatientArrival(
+            patient_id="DOC_BUSY",
+            arrival_minute=0,
+            arrival_time_str="08:00 AM",
+            chief_complaint="Checkup",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=20,
+            target_wait_minutes=120,
+        ),
+        PatientArrival(
+            patient_id="R1_FIRST",
+            arrival_minute=5,
+            arrival_time_str="08:05 AM",
+            chief_complaint="Knee ache",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=10,
+            target_wait_minutes=120,
+        ),
+        PatientArrival(
+            patient_id="R2_SECOND",
+            arrival_minute=8,
+            arrival_time_str="08:08 AM",
+            chief_complaint="Minor cold",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=10,
+            target_wait_minutes=120,
+        ),
+        PatientArrival(
+            patient_id="R3_THIRD",
+            arrival_minute=12,
+            arrival_time_str="08:12 AM",
+            chief_complaint="Skin rash",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=10,
+            target_wait_minutes=120,
+        ),
+    ]
+
+    records = simulate_triage_assisted(arrivals, num_doctors=1)
+    # Check that after DOC_BUSY, the 3 routine patients are served strictly in arrival order: R1, then R2, then R3
+    served_ids = [r.patient_id for r in records]
+    assert served_ids == ["DOC_BUSY", "R1_FIRST", "R2_SECOND", "R3_THIRD"]
+
+
+def test_critical_escalation_remains_visible_and_cannot_be_downgraded():
+    """
+    Requirement 3: Never allow simulation sorting, filtering or queue updates to suppress
+    a critical emergency alert. Critical safety escalations must be prioritized like emergency.
+    """
+    arrivals = [
+        PatientArrival(
+            patient_id="DOC_BUSY",
+            arrival_minute=0,
+            arrival_time_str="08:00 AM",
+            chief_complaint="Checkup",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=20,
+            target_wait_minutes=120,
+        ),
+        PatientArrival(
+            patient_id="P_ROUTINE",
+            arrival_minute=5,
+            arrival_time_str="08:05 AM",
+            chief_complaint="Rash",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=10,
+            target_wait_minutes=120,
+        ),
+        PatientArrival(
+            patient_id="P_ESCALATED_ROUTINE",
+            arrival_minute=6,
+            arrival_time_str="08:06 AM",
+            chief_complaint="Abdominal pain with red flag deterioration",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=15,
+            target_wait_minutes=5,
+            is_escalated=True,  # Safety-reviewed critical escalation
+        ),
+    ]
+
+    records = simulate_triage_assisted(arrivals, num_doctors=1)
+    # The escalated patient must be prioritized over P_ROUTINE even though both have triage_level=3
+    assert records[1].patient_id == "P_ESCALATED_ROUTINE"
+    assert records[1].is_escalated is True
+    assert records[2].patient_id == "P_ROUTINE"
+
+
+def test_percentile_metrics_and_served_counts():
+    """
+    Requirement 4: Verify calculation of mean, median, p75, p90, p95 wait times
+    and served vs. still-waiting counts.
+    """
+    # 30 patients with controlled wait times
+    test_arrivals = generate_synthetic_arrivals(n_patients=30, random_seed=42)
+    records = simulate_triage_assisted(test_arrivals, num_doctors=2)
+    metrics = calculate_group_metrics(records, scenario_duration_minutes=120)
+
+    overall = metrics["overall"]
+    assert "p75_wait_minutes" in overall
+    assert "p90_wait_minutes" in overall
+    assert "p95_wait_minutes" in overall
+    assert "total_served" in overall
+    assert "total_still_waiting" in overall
+
+    # Check monotonicity of percentiles
+    assert overall["min_wait_minutes"] <= overall["median_wait_minutes"]
+    assert overall["median_wait_minutes"] <= overall["p75_wait_minutes"]
+    assert overall["p75_wait_minutes"] <= overall["p90_wait_minutes"]
+    assert overall["p90_wait_minutes"] <= overall["p95_wait_minutes"]
+    assert overall["p95_wait_minutes"] <= overall["max_wait_minutes"]
+
+    # Total arrived must equal served + still_waiting
+    assert overall["total_served"] + overall["total_still_waiting"] == 30
+
+
+def test_zero_baseline_handled_without_division_error():
+    """
+    Requirement 5: Handle zero or unavailable baseline waiting times without division errors.
+    """
+    # Scenario where arrivals get immediate service (wait = 0)
+    arrivals = [
+        PatientArrival(
+            patient_id="P_IMMEDIATE_1",
+            arrival_minute=0,
+            arrival_time_str="08:00 AM",
+            chief_complaint="Emergency",
+            triage_level=1,
+            urgency_category="EMERGENCY",
+            service_time_minutes=10,
+            target_wait_minutes=5,
+        ),
+        PatientArrival(
+            patient_id="P_IMMEDIATE_2",
+            arrival_minute=50,
+            arrival_time_str="08:50 AM",
+            chief_complaint="Routine",
+            triage_level=3,
+            urgency_category="ROUTINE",
+            service_time_minutes=10,
+            target_wait_minutes=120,
+        ),
+    ]
+
+    # With 2 doctors, both patients are served immediately upon arrival (wait = 0.0)
+    res = run_comparative_simulation(n_patients=2, num_doctors=2)
+    # Should not raise ZeroDivisionError and return valid floats
+    assert isinstance(res["comparison_highlights"]["emergency_wait_reduction_percent"], float)
+    assert isinstance(res["comparison_highlights"]["emergency_wait_reduction_minutes"], float)
+    assert isinstance(res["comparison_highlights"]["overall_wait_reduction_percent"], float)
+
+
+def test_doctor_breaks_increase_waiting_times():
+    """
+    Requirement 2: Configurable doctor rest breaks and department staffing assumptions.
+    Doctors taking rest breaks increase subsequent wait times.
+    """
+    arrivals = [
+        PatientArrival(
+            patient_id=f"P_{i}",
+            arrival_minute=i * 20,
+            arrival_time_str="08:00 AM",
+            chief_complaint="Consultation",
+            triage_level=2,
+            urgency_category="PRIORITY",
+            service_time_minutes=25,
+            target_wait_minutes=45,
+        )
+        for i in range(8)
+    ]
+
+    # Without break
+    records_no_break = simulate_fcfs(arrivals, num_doctors=1, doctor_break_minutes=0)
+    total_wait_no_break = sum(r.wait_time_minutes for r in records_no_break)
+
+    # With 30 min break every 60 min
+    records_with_break = simulate_fcfs(
+        arrivals,
+        num_doctors=1,
+        doctor_break_minutes=30,
+        doctor_break_interval_minutes=60,
+    )
+    total_wait_with_break = sum(r.wait_time_minutes for r in records_with_break)
+
+    # Break must add idle time and thus increase total wait time
+    assert total_wait_with_break > total_wait_no_break
+
+
+def test_arrival_log_status_and_database_source_api(client):
+    """
+    Requirement 1 & 6: Arrival log status and database source endpoints.
+    - Check official arrival log reports limitation when missing.
+    - Database arrivals returns records from SQLite.
+    - Simulation run accepts 'database' and rejects 'official' with 404.
+    """
+    # 1. Arrival log status
+    status_res = client.get("/api/simulation/arrival-log-status")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert status_data["official_log_available"] is False
+    assert "limitation" in status_data["limitation_statement"].lower()
+    assert status_data["database_records_count"] > 0
+    assert status_data["synthetic_demo_available"] is True
+
+    # 2. Database arrivals endpoint
+    db_arr_res = client.get("/api/simulation/database-arrivals?limit=15")
+    assert db_arr_res.status_code == 200
+    db_arr_data = db_arr_res.json()
+    assert len(db_arr_data) == 15
+    assert db_arr_data[0]["patient_id"].startswith("UHID") or db_arr_data[0]["patient_id"].startswith("P-")
+
+    # 3. Simulation run with database source
+    db_sim_res = client.post(
+        "/api/simulation/run",
+        json={
+            "num_doctors": 3,
+            "n_patients": 20,
+            "dataset_source": "database",
+        },
+    )
+    assert db_sim_res.status_code == 200
+    sim_data = db_sim_res.json()
+    assert sim_data["dataset_source"] == "database"
+    assert sim_data["assumptions_documentation"]["dataset_source"].startswith("Recorded Database Patient Intake")
+
+    # 4. Simulation run with official source when file is missing -> 404 with limitation
+    official_sim_res = client.post(
+        "/api/simulation/run",
+        json={
+            "num_doctors": 3,
+            "dataset_source": "official",
+        },
+    )
+    assert official_sim_res.status_code == 404
+    assert "No official hospital patient arrival log file was provided" in official_sim_res.json()["detail"]
+

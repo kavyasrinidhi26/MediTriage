@@ -1,6 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkFirebaseConfig, isFirebaseConfigured, missingFirebaseKeys } from '../src/services/firebase.ts';
+import {
+  checkFirebaseConfig,
+  validateFirebaseConfig,
+  isFirebaseConfigured,
+  missingFirebaseKeys,
+} from '../src/services/firebase.ts';
 
 describe('Firebase Authentication Client — Configuration & Safety Invariants', () => {
   test('1. Missing Configuration Detection: Accurately identifies unconfigured state without crashing', () => {
@@ -68,5 +73,52 @@ describe('Firebase Authentication Client — Configuration & Safety Invariants',
     // Unauthenticated state safely returns empty header object without throwing
     const unauthHeaders = await getAuthHeaders();
     assert.deepEqual(unauthHeaders, {});
+  });
+
+  test('7. Explicit Empty Config: validateFirebaseConfig detects all missing keys for an empty object', () => {
+    const result = validateFirebaseConfig({});
+    assert.equal(result.isConfigured, false);
+    assert.deepEqual(result.missingKeys, [
+      'VITE_FIREBASE_API_KEY',
+      'VITE_FIREBASE_AUTH_DOMAIN',
+      'VITE_FIREBASE_PROJECT_ID',
+      'VITE_FIREBASE_APP_ID',
+    ]);
+  });
+
+  test('8. Whitespace Config Handling: Whitespace-only strings are treated as missing keys', () => {
+    const result = validateFirebaseConfig({
+      apiKey: '   ',
+      authDomain: '\t',
+      projectId: '  \n',
+      appId: '',
+    });
+    assert.equal(result.isConfigured, false);
+    assert.equal(result.missingKeys.length, 4);
+  });
+
+  test('9. Partial Config Detection: Missing individual keys are pinpointed precisely', () => {
+    const partial = validateFirebaseConfig({
+      apiKey: 'AIzaSyDemoKey',
+      authDomain: 'meditriage.firebaseapp.com',
+      // projectId missing
+      // appId missing
+    });
+    assert.equal(partial.isConfigured, false);
+    assert.deepEqual(partial.missingKeys, [
+      'VITE_FIREBASE_PROJECT_ID',
+      'VITE_FIREBASE_APP_ID',
+    ]);
+  });
+
+  test('10. Valid Complete Config: validateFirebaseConfig reports configured when all required keys are present', () => {
+    const complete = validateFirebaseConfig({
+      apiKey: 'AIzaSyFakeKeyForTestOnly1234567890',
+      authDomain: 'meditriage-test.firebaseapp.com',
+      projectId: 'meditriage-test',
+      appId: '1:123456789:web:abcdef123456',
+    });
+    assert.equal(complete.isConfigured, true);
+    assert.deepEqual(complete.missingKeys, []);
   });
 });

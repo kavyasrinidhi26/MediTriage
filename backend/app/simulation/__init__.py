@@ -7,6 +7,8 @@ from app.simulation.queue_simulator import (
     simulate_triage_assisted,
     calculate_group_metrics,
     run_comparative_simulation,
+    check_official_arrival_log,
+    load_database_arrivals,
 )
 
 __all__ = [
@@ -17,4 +19,7 @@ __all__ = [
     "simulate_triage_assisted",
     "calculate_group_metrics",
     "run_comparative_simulation",
+    "check_official_arrival_log",
+    "load_database_arrivals",
 ]
+

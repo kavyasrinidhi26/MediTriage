@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     HOSPITAL_NAME: str = "District Civil Hospital OPD"
     HOSPITAL_TIMEZONE: str = "Asia/Kolkata"
     TRIAGE_VERSION: str = "1.0.0-prototype"
+    # Configurable Model Confidence Abstention Threshold (Provisional, pending clinical review)
+    CONFIDENCE_ABSTENTION_THRESHOLD: float = 0.35
+    PROVISIONAL_CONFIDENCE_THRESHOLD_NOTICE: str = (
+        "Provisional model confidence threshold (0.35) for student demonstration prototype; not clinically validated."
+    )
     # Firebase Authentication Settings
     FIREBASE_PROJECT_ID: Optional[str] = None
     FIREBASE_CREDENTIALS_PATH: Optional[str] = None

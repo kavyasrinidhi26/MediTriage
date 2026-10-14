@@ -314,9 +314,31 @@ export interface TriageEvaluationMetrics {
   f1_weighted: number;
   emergency_level_analyzed?: number;
   emergency_cases_total: number;
-  emergency_recall_sensitivity: number;
-  emergency_precision?: number;
+  emergency_recall_sensitivity: number | null;
+  emergency_precision?: number | null;
   emergency_false_negatives: number;
+  emergency_recall_numerator?: number;
+  emergency_recall_denominator?: number;
+  emergency_recall_display?: string;
+  is_emergency_set_empty?: boolean;
+  asymmetric_clinical_cost?: {
+    under_triage_penalty_weight: number;
+    emergency_under_triage_count: number;
+    emergency_under_triage_cost: number;
+    non_emergency_misclassifications_count: number;
+    total_asymmetric_clinical_loss: number;
+    mean_clinical_loss_per_patient: number;
+    official_evaluator_provided: boolean;
+    evaluator_dependency_status: string;
+  };
+  abstention_metrics?: {
+    abstention_count: number;
+    abstention_rate: number;
+    emergencies_in_abstained_count: number;
+    autonomous_emergency_recall: number | null;
+    workflow_safety_rate_with_nurse_review: number | null;
+    abstention_safety_invariant: string;
+  };
   labels: number[];
   confusion_matrix: number[][];
   per_class_metrics: Record<string, ClassMetric>;
@@ -370,10 +392,38 @@ export interface ModelEvaluationResponse {
     department?: DepartmentEvaluationMetrics;
   };
   emergency_metrics?: {
-    emergency_recall: number;
-    emergency_precision: number;
+    emergency_recall: number | null;
+    emergency_precision: number | null;
     emergency_false_negatives: number;
     emergency_cases_total: number;
+    emergency_recall_numerator?: number;
+    emergency_recall_denominator?: number;
+    emergency_recall_display?: string;
+    is_emergency_set_empty?: boolean;
+  };
+  asymmetric_clinical_cost?: {
+    under_triage_penalty_weight: number;
+    emergency_under_triage_count: number;
+    emergency_under_triage_cost: number;
+    non_emergency_misclassifications_count: number;
+    total_asymmetric_clinical_loss: number;
+    mean_clinical_loss_per_patient: number;
+    official_evaluator_provided: boolean;
+    evaluator_dependency_status: string;
+  };
+  abstention_metrics?: {
+    abstention_count: number;
+    abstention_rate: number;
+    emergencies_in_abstained_count: number;
+    autonomous_emergency_recall: number | null;
+    workflow_safety_rate_with_nurse_review: number | null;
+    abstention_safety_invariant: string;
+  };
+  split_integrity?: {
+    train_test_id_overlap: number;
+    train_val_id_overlap: number;
+    val_test_id_overlap: number;
+    leakage_safeguard_verified: boolean;
   };
   official_weighted_score?: {
     score: number;
@@ -413,23 +463,33 @@ export interface UrgencyGroupMetrics {
   patient_count: number;
   avg_wait_minutes: number;
   median_wait_minutes: number;
+  p75_wait_minutes?: number;
+  p90_wait_minutes?: number;
+  p95_wait_minutes?: number;
   max_wait_minutes: number;
   min_wait_minutes: number;
   target_minutes: number;
   exceeded_target_count: number;
   target_adherence_percent: number;
   reassessment_escalated_count: number;
+  served_count?: number;
+  still_waiting_count?: number;
 }
 
 export interface OverallSimulationMetrics {
   total_patients: number;
   avg_wait_minutes: number;
   median_wait_minutes: number;
+  p75_wait_minutes?: number;
+  p90_wait_minutes?: number;
+  p95_wait_minutes?: number;
   max_wait_minutes: number;
   min_wait_minutes: number;
   total_exceeded_target: number;
   target_adherence_rate: number;
   total_reassessed_escalations: number;
+  total_served?: number;
+  total_still_waiting?: number;
 }
 
 export interface SimulationPolicyMetrics {
@@ -444,12 +504,22 @@ export interface QueueOverTimePoint {
   triage_queue: number;
 }
 
+export interface TierCompletionSummary {
+  urgency_category: string;
+  total_arrived: number;
+  fcfs_completed: number;
+  fcfs_still_waiting: number;
+  triage_completed: number;
+  triage_still_waiting: number;
+}
+
 export interface CaseCompletionSummary {
   scenario_duration_minutes: number;
   fcfs_completed: number;
   fcfs_remaining: number;
   triage_completed: number;
   triage_remaining: number;
+  by_urgency?: Record<string, TierCompletionSummary>;
 }
 
 export interface ClinicianWorkloadItem {
@@ -485,10 +555,19 @@ export interface SimulationEventItem {
   reassessment_escalated?: boolean;
 }
 
+export interface ArrivalLogStatusResponse {
+  official_log_available: boolean;
+  official_log_filename?: string | null;
+  limitation_statement: string;
+  database_records_count: number;
+  synthetic_demo_available: boolean;
+}
+
 export interface SimulationResponse {
   simulation_id: string;
   data_source: string;
   is_synthetic: boolean;
+  dataset_source?: string;
   parameters: {
     num_doctors: number;
     patient_count: number;
@@ -502,7 +581,10 @@ export interface SimulationResponse {
       routine_minutes: number;
     };
     starvation_reassessment_threshold_minutes: number;
+    doctor_break_minutes?: number;
+    doctor_break_interval_minutes?: number;
   };
+  assumptions_documentation?: Record<string, string>;
   fcfs: SimulationPolicyMetrics;
   triage: SimulationPolicyMetrics;
   queue_over_time?: QueueOverTimePoint[];
@@ -518,12 +600,24 @@ export interface SimulationResponse {
   comparison_highlights: {
     emergency_avg_wait_fcfs: number;
     emergency_avg_wait_triage: number;
+    emergency_wait_reduction_minutes?: number;
     emergency_wait_reduction_percent: number;
+    emergency_median_wait_fcfs?: number;
+    emergency_median_wait_triage?: number;
+    emergency_median_reduction_minutes?: number;
+    emergency_median_reduction_percent?: number;
+    emergency_p90_fcfs?: number;
+    emergency_p90_triage?: number;
+    overall_avg_wait_fcfs?: number;
+    overall_avg_wait_triage?: number;
+    overall_wait_reduction_minutes?: number;
+    overall_wait_reduction_percent?: number;
     emergency_exceeded_target_fcfs: number;
     emergency_exceeded_target_triage: number;
     starvation_safeguards_triggered: number;
     fcfs_max_queue_length?: number;
     triage_max_queue_length?: number;
+    disclaimer?: string;
   };
   sample_patient_records: {
     fcfs: SimulationPatientRecord[];

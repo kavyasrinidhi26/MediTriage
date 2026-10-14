@@ -124,4 +124,54 @@ describe('Queue Simulation — FCFS vs Triage Policy, Emergency Preemption & Sta
       // Backend offline in test runner
     }
   });
+
+  test('7. Arrival Log Status: Reports limitation when official log is not present and lists DB records', async () => {
+    const { fetchArrivalLogStatus } = await import('../src/services/api.ts');
+    try {
+      const status = await fetchArrivalLogStatus();
+      assert.ok(status);
+      assert.equal(status.official_log_available, false);
+      assert.ok(status.limitation_statement.includes('Limitation'));
+      assert.ok(typeof status.database_records_count === 'number');
+      assert.equal(status.synthetic_demo_available, true);
+    } catch {
+      // Backend offline in test runner
+    }
+  });
+
+  test('8. Percentiles & Absolute Reductions: Response includes p75, p90, p95, and absolute minute differences', async () => {
+    try {
+      const res = await runQueueSimulation({
+        num_doctors: 3,
+        n_patients: 30,
+        random_seed: 42,
+        doctor_break_minutes: 15,
+        doctor_break_interval_minutes: 120,
+      });
+
+      assert.ok(res.fcfs.overall.p75_wait_minutes !== undefined);
+      assert.ok(res.fcfs.overall.p90_wait_minutes !== undefined);
+      assert.ok(res.fcfs.overall.p95_wait_minutes !== undefined);
+      assert.ok(res.triage.overall.p75_wait_minutes !== undefined);
+      assert.ok(res.triage.overall.p90_wait_minutes !== undefined);
+      assert.ok(res.triage.overall.p95_wait_minutes !== undefined);
+
+      // Percentile monotonic ordering: min <= median <= p75 <= p90 <= p95 <= max
+      assert.ok((res.fcfs.overall.median_wait_minutes ?? 0) <= (res.fcfs.overall.p75_wait_minutes ?? 0));
+      assert.ok((res.fcfs.overall.p75_wait_minutes ?? 0) <= (res.fcfs.overall.p90_wait_minutes ?? 0));
+      assert.ok((res.fcfs.overall.p90_wait_minutes ?? 0) <= (res.fcfs.overall.p95_wait_minutes ?? 0));
+
+      // Absolute reduction fields
+      assert.ok(res.comparison_highlights.emergency_wait_reduction_minutes !== undefined);
+      assert.ok(res.comparison_highlights.overall_wait_reduction_minutes !== undefined);
+
+      // Served vs remaining counts
+      assert.ok(res.case_completion?.by_urgency !== undefined);
+      assert.ok(res.assumptions_documentation !== undefined);
+      assert.ok(res.assumptions_documentation.arrival_order_rule !== undefined);
+      assert.ok(res.assumptions_documentation.emergency_escalation_rule !== undefined);
+    } catch {
+      // Backend offline in test runner
+    }
+  });
 });

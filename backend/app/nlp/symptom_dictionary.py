@@ -22,6 +22,14 @@ CONCEPT_SEIZURE = "seizure"
 CONCEPT_TRAUMA = "trauma"
 CONCEPT_PALPITATIONS = "palpitations"
 CONCEPT_DIZZINESS = "dizziness"
+CONCEPT_STROKE_DEFICIT = "stroke_deficit"
+CONCEPT_COUGH = "cough"
+CONCEPT_JOINT_BONE_PAIN = "joint_bone_pain"
+CONCEPT_SKIN_RASH = "skin_rash"
+CONCEPT_EYE_SYMPTOMS = "eye_symptoms"
+CONCEPT_EAR_ENT_SYMPTOMS = "ear_ent_symptoms"
+CONCEPT_PREGNANCY_OBGYN = "pregnancy_obgyn"
+CONCEPT_ROUTINE_ADMINISTRATIVE = "routine_administrative"
 
 # Clinically reviewed symptom terms organized by concept and language format
 SYMPTOM_DICTIONARY: Dict[str, Dict[str, List[str]]] = {
@@ -156,6 +164,102 @@ SYMPTOM_DICTIONARY: Dict[str, Dict[str, List[str]]] = {
             "kallu tiragadam", "kallu thiruguthunnayi", "thala thiragadam"
         ],
     },
+    CONCEPT_STROKE_DEFICIT: {
+        "en": [
+            "facial droop", "slurred speech", "stroke", "hemiparesis", "one-sided weakness",
+            "one sided weakness", "arm weakness", "sudden paralysis", "paralysis",
+            "difficulty speaking", "dysarthria", "face drooping", "stroke symptoms",
+            "inability to move arm", "weakness in limbs", "stroke like symptoms"
+        ],
+        "te_script": [
+            "పక్షవాతం", "ముఖం వంకరపోవడం", "మాట తడబడటం", "చెయ్యి కాలు పడిపోవడం", "ఒంటి పక్క బలహీనత"
+        ],
+        "te_translit": [
+            "pakshavatham", "mukham vankarapovadam", "mata thadabadatam",
+            "cheyyi kaalu padipovadam", "stroke vachindi", "one side weakness",
+            "paralysis", "mukham vankara"
+        ],
+    },
+    CONCEPT_COUGH: {
+        "en": [
+            "cough", "dry cough", "wet cough", "cough with phlegm", "phlegm", "cold and cough", "chest congestion"
+        ],
+        "te_script": [
+            "దగ్గు", "పొడి దగ్గు", "కఫం", "కఫంతో కూడిన దగ్గు"
+        ],
+        "te_translit": [
+            "daggu", "podi daggu", "kafam", "cough vachindi", "khang"
+        ],
+    },
+    CONCEPT_JOINT_BONE_PAIN: {
+        "en": [
+            "joint pain", "knee pain", "backache", "back pain", "bone pain", "body pains",
+            "arthritis", "leg pain", "shoulder pain", "neck pain", "sprain"
+        ],
+        "te_script": [
+            "కీళ్ల నొప్పులు", "మోకాళ్ల నొప్పి", "నడుము నొప్పి", "ఒళ్లు నొప్పులు", "ఎముకల నొప్పి", "కాలు నొప్పి"
+        ],
+        "te_translit": [
+            "keella noppulu", "mokaalla noppi", "nadumu noppi", "ollu noppulu", "kaalu noppi", "knee noppi", "back noppi"
+        ],
+    },
+    CONCEPT_SKIN_RASH: {
+        "en": [
+            "skin rash", "rash", "itching", "skin allergy", "boils", "eczema", "skin itching", "hives"
+        ],
+        "te_script": [
+            "దురద", "చర్మం దురద", "దద్దుర్లు", "గజ్జి", "తామర"
+        ],
+        "te_translit": [
+            "durada", "charmam durada", "daddurlu", "gajji", "skin itching", "itchy"
+        ],
+    },
+    CONCEPT_EYE_SYMPTOMS: {
+        "en": [
+            "eye pain", "blurred vision", "eye irritation", "red eye", "cataract", "vision problem", "watery eyes"
+        ],
+        "te_script": [
+            "కంటి నొప్పి", "కంటి చూపు మందగించడం", "కళ్లు ఎర్రబడటం", "కళ్లు మంటలు"
+        ],
+        "te_translit": [
+            "kanti noppi", "kanti choopu", "kallu errabadatam", "eye problem", "eye noppi"
+        ],
+    },
+    CONCEPT_EAR_ENT_SYMPTOMS: {
+        "en": [
+            "ear pain", "earache", "throat pain", "sore throat", "difficulty swallowing", "ear discharge", "sinus pain"
+        ],
+        "te_script": [
+            "చెవి నొప్పి", "గొంతు నొప్పి", "చెవిలో చీము", "గొంతు మంట"
+        ],
+        "te_translit": [
+            "chevi noppi", "gonthu noppi", "throat noppi", "chevi lo noppi", "ear noppi"
+        ],
+    },
+    CONCEPT_PREGNANCY_OBGYN: {
+        "en": [
+            "pregnancy", "labor pain", "pelvic pain", "menstrual pain", "bleeding during pregnancy", "antenatal", "missed period"
+        ],
+        "te_script": [
+            "గర్భవతి", "నెలలు నిండాయి", "కడుపు నొప్పి గర్భం", "రుతుక్రమ సమస్యలు"
+        ],
+        "te_translit": [
+            "garbhavathi", "nelalu", "pregnant", "delivery noppulu", "periods problem"
+        ],
+    },
+    CONCEPT_ROUTINE_ADMINISTRATIVE: {
+        "en": [
+            "routine checkup", "regular follow-up", "blood sugar check", "bp check", "refill",
+            "repeat medication", "prescription renewal", "dressing change", "suture removal",
+            "medical certificate", "health checkup", "annual review"
+        ],
+        "te_script": [
+            "సాధారణ పరీక్ష", "మందుల చీటీ", "షుగర్ పరీక్ష", "బీపీ పరీక్ష", "ఫాలో అప్"
+        ],
+        "te_translit": [
+            "routine checkup", "regular checkup", "sugar checkup", "bp checkup", "follow up", "mandulu rayinchadaniki", "refill"
+        ],
+    },
 }
 
 # Negation terms by language
@@ -201,4 +305,5 @@ RED_FLAG_CONCEPTS: Set[str] = {
     CONCEPT_SEVERE_BLEEDING,
     CONCEPT_SEIZURE,
     CONCEPT_TRAUMA,
+    CONCEPT_STROKE_DEFICIT,
 }

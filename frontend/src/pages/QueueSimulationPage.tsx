@@ -15,6 +15,11 @@ import {
   Stethoscope,
   Sparkles,
   RefreshCw,
+  Database,
+  Coffee,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,15 +34,20 @@ import {
   Legend,
 } from 'recharts';
 import { motion, useReducedMotion } from 'motion/react';
-import { runQueueSimulation } from '../services/api';
+import { runQueueSimulation, fetchArrivalLogStatus } from '../services/api';
 import type {
   SimulationResponse,
   UrgencyGroupMetrics,
+  ArrivalLogStatusResponse,
 } from '../types/triage';
 
 export const QueueSimulationPage: React.FC = () => {
   const shouldReduceMotion = useReducedMotion();
   const formId = useId();
+
+  // Dataset Source: 'synthetic' | 'database' | 'official'
+  const [datasetSource, setDatasetSource] = useState<'synthetic' | 'database' | 'official'>('synthetic');
+  const [arrivalLogStatus, setArrivalLogStatus] = useState<ArrivalLogStatusResponse | null>(null);
 
   // Configurable Parameters
   const [numPatients, setNumPatients] = useState<number>(50);
@@ -47,6 +57,10 @@ export const QueueSimulationPage: React.FC = () => {
   const [emergencyProportion, setEmergencyProportion] = useState<number>(0.15); // 15%
   const [starvationThreshold, setStarvationThreshold] = useState<number>(90); // minutes
   const [randomSeed, setRandomSeed] = useState<number>(42);
+
+  // Advanced doctor break configuration
+  const [doctorBreakMinutes, setDoctorBreakMinutes] = useState<number>(0); // 0 = continuous
+  const [doctorBreakInterval, setDoctorBreakInterval] = useState<number>(240); // 4h
 
   // Advanced service duration breakdown
   const [serviceEmergency, setServiceEmergency] = useState<number>(20);
@@ -59,7 +73,23 @@ export const QueueSimulationPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'kpis' | 'queue_trend' | 'waiting_chart' | 'workload' | 'timeline' | 'methodology'>('kpis');
 
+  // Check arrival log status on mount
+  useEffect(() => {
+    fetchArrivalLogStatus()
+      .then((status) => setArrivalLogStatus(status))
+      .catch(() => {});
+  }, []);
+
   const executeSimulation = useCallback(async () => {
+    if (datasetSource === 'official') {
+      setIsLoading(false);
+      setData(null);
+      setError(
+        'Official patient arrival log is unavailable. The H1 OPD problem statement repository does not provide an official arrival log file. In accordance with requirements, this limitation is explicitly reported and no invented results are displayed under this mode. Please select "Synthetic Demonstration" or "Database Intake Log".'
+      );
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -74,10 +104,14 @@ export const QueueSimulationPage: React.FC = () => {
         service_time_priority: servicePriority,
         service_time_routine: serviceRoutine,
         starvation_reassessment_threshold: starvationThreshold,
+        dataset_source: datasetSource,
+        doctor_break_minutes: doctorBreakMinutes,
+        doctor_break_interval_minutes: doctorBreakInterval,
       });
       setData(res);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Simulation run failed.');
+      setData(null);
     } finally {
       setIsLoading(false);
     }
@@ -92,6 +126,9 @@ export const QueueSimulationPage: React.FC = () => {
     servicePriority,
     serviceRoutine,
     starvationThreshold,
+    datasetSource,
+    doctorBreakMinutes,
+    doctorBreakInterval,
   ]);
 
   useEffect(() => {
@@ -99,6 +136,7 @@ export const QueueSimulationPage: React.FC = () => {
   }, [executeSimulation]);
 
   const handleResetDefaults = () => {
+    setDatasetSource('synthetic');
     setNumPatients(50);
     setScenarioDuration(240);
     setNumDoctors(3);
@@ -109,6 +147,8 @@ export const QueueSimulationPage: React.FC = () => {
     setServiceEmergency(20);
     setServicePriority(15);
     setServiceRoutine(10);
+    setDoctorBreakMinutes(0);
+    setDoctorBreakInterval(240);
   };
 
   const handleRerun = () => {
@@ -266,7 +306,91 @@ export const QueueSimulationPage: React.FC = () => {
         <div className="control-panel-header">
           <Sliders size={18} className="text-sky-500" />
           <h3 className="control-panel-title">Interactive Digital Twin Parameter Controls</h3>
-          <span className="control-panel-sub">Adjust scenario assumptions and trigger dynamic recalculation</span>
+          <span className="control-panel-sub">Adjust scenario assumptions, data sources, and clinician staffing</span>
+        </div>
+
+        {/* Dataset Source Selection & Status */}
+        <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Database size={14} className="text-sky-600" />
+              Patient Arrival Log Source:
+            </span>
+            {arrivalLogStatus && (
+              <span className={`text-xs px-2 py-0.5 rounded font-semibold flex items-center gap-1 ${
+                arrivalLogStatus.official_log_available
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+              }`}>
+                {arrivalLogStatus.official_log_available ? (
+                  <>
+                    <CheckCircle2 size={12} /> Official Log Available
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={12} /> Official Log: Not Provided (Limitation Reported)
+                  </>
+                )}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDatasetSource('synthetic')}
+              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+                datasetSource === 'synthetic'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              <Activity size={14} />
+              Synthetic Demonstration Scenario (M/G/c Model)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatasetSource('database')}
+              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+                datasetSource === 'database'
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              <Database size={14} />
+              Database Patient Intake Records ({arrivalLogStatus?.database_records_count ?? 580} records)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatasetSource('official')}
+              className={`px-3 py-1.5 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+                datasetSource === 'official'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              <FileSpreadsheet size={14} />
+              Official Problem Statement Arrival Log
+            </button>
+          </div>
+
+          {/* Contextual guidance on active dataset source */}
+          <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+            {datasetSource === 'synthetic' && (
+              <span className="text-sky-700 dark:text-sky-300 font-medium">
+                <strong>Labelled Synthetic Demonstration:</strong> Parameterized discrete-event arrival stream for reproducible comparison. Never presented as official evaluation data.
+              </span>
+            )}
+            {datasetSource === 'database' && (
+              <span className="text-teal-700 dark:text-teal-300 font-medium">
+                <strong>Recorded Hospital Intake Records:</strong> Patient arrival times, chief complaints, and triage categories loaded directly from the system SQLite intake database.
+              </span>
+            )}
+            {datasetSource === 'official' && (
+              <span className="text-amber-700 dark:text-amber-300 font-medium">
+                <strong>Limitation Notice:</strong> No external official arrival log file was provided in this challenge problem statement. In accordance with requirements, this limitation is explicitly reported rather than fabricating data.
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="controls-grid">
@@ -463,11 +587,113 @@ export const QueueSimulationPage: React.FC = () => {
                 value={randomSeed}
                 onChange={(e) => setRandomSeed(Number(e.target.value))}
                 className="seed-input-field"
+                disabled={datasetSource === 'database'}
+                title={datasetSource === 'database' ? 'Disabled for recorded database influx' : 'Random seed for reproducibility'}
               />
             </div>
           </div>
+
+          {/* Control 7: Doctor Rest Breaks & Capacity */}
+          <div className="control-field-card">
+            <div className="control-field-label-row">
+              <label className="control-label flex items-center gap-1.5">
+                <Coffee size={14} className="text-amber-600" />
+                Doctor Rest Breaks
+              </label>
+              <span className="control-value-badge">
+                {doctorBreakMinutes === 0 ? 'Continuous (0m)' : `${doctorBreakMinutes}m / ${doctorBreakInterval / 60}h`}
+              </span>
+            </div>
+            <div className="quick-select-pills">
+              {[
+                [0, 'Continuous (0m)'],
+                [15, '15m Break'],
+                [30, '30m Break'],
+              ].map(([dur, label]) => (
+                <button
+                  key={dur}
+                  type="button"
+                  onClick={() => setDoctorBreakMinutes(Number(dur))}
+                  className={`quick-pill-btn ${doctorBreakMinutes === dur ? 'active' : ''}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {doctorBreakMinutes > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-semibold">Interval:</span>
+                {[
+                  [120, 'Every 2h'],
+                  [240, 'Every 4h'],
+                  [360, 'Every 6h'],
+                ].map(([intv, label]) => (
+                  <button
+                    key={intv}
+                    type="button"
+                    onClick={() => setDoctorBreakInterval(Number(intv))}
+                    className={`quick-pill-btn ${doctorBreakInterval === intv ? 'active' : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Empty State / Inputs Unavailable Notice */}
+      {!data && !isLoading && (
+        <div className="p-8 my-6 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20 text-slate-800 dark:text-slate-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start gap-4">
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg flex-shrink-0">
+              <FileSpreadsheet size={32} />
+            </div>
+            <div className="space-y-3 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                  Dataset Limitation Notice
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Requested: <strong>{datasetSource === 'official' ? 'Official Problem Statement Arrival Log' : datasetSource}</strong>
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                Official Arrival Log File Not Provided In Problem Statement
+              </h3>
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                No external patient arrival log file (e.g. <code>arrival_log.csv</code>) exists in the problem statement distribution.
+                In strict compliance with evaluation instructions, <strong>results are never invented or fabricated when real inputs are unavailable</strong>,
+                nor do we make ungrounded real-world waiting-time claims.
+              </p>
+              <div className="p-3 bg-white/80 dark:bg-slate-900/60 rounded-lg border border-amber-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                <p><strong>Available Reproducible Evaluation Options:</strong></p>
+                <p>&bull; <strong>Recorded Hospital Intake Database:</strong> Replays actual patient arrivals, vital signs, and triage levels recorded in the system SQLite database ({arrivalLogStatus?.database_records_count ?? 580} records).</p>
+                <p>&bull; <strong>Synthetic Demonstration Scenario:</strong> Generates a parameterized M/G/c arrival stream with configured emergency proportions and random seeds for reproducible policy benchmarking.</p>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDatasetSource('database')}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm"
+                >
+                  <Database size={14} />
+                  Load Recorded Database Arrivals ({arrivalLogStatus?.database_records_count ?? 580} records)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatasetSource('synthetic')}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold text-xs transition-colors flex items-center gap-2 shadow-sm"
+                >
+                  <Activity size={14} />
+                  Load Synthetic Demonstration Scenario
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Short Automatically Generated Clinical Summary */}
       {data?.auto_generated_summary && (
@@ -496,22 +722,35 @@ export const QueueSimulationPage: React.FC = () => {
           {/* Card 1: Emergency Wait Time */}
           <div className="kpi-card highlight-danger">
             <div className="kpi-header">
-              <span className="kpi-label">L1 EMERGENCY AVERAGE WAIT</span>
+              <span className="kpi-label">L1 EMERGENCY WAIT TIME</span>
               <TrendingDown size={18} className="text-emerald-500" />
             </div>
             <div className="kpi-stat-pair">
               <div className="stat-side baseline">
                 <span className="stat-tag">BASELINE (FCFS)</span>
                 <span className="stat-num">{data.comparison_highlights.emergency_avg_wait_fcfs}m</span>
+                <span className="text-[10px] text-slate-500">
+                  Med: {data.comparison_highlights.emergency_median_wait_fcfs ?? fcfsGroups.EMERGENCY?.median_wait_minutes ?? 0}m | P90: {data.comparison_highlights.emergency_p90_fcfs ?? fcfsGroups.EMERGENCY?.p90_wait_minutes ?? 0}m
+                </span>
               </div>
               <div className="stat-arrow">&rarr;</div>
               <div className="stat-side proposed">
                 <span className="stat-tag">PROPOSED (TRIAGE)</span>
                 <span className="stat-num text-emerald-600">{data.comparison_highlights.emergency_avg_wait_triage}m</span>
+                <span className="text-[10px] text-slate-500">
+                  Med: {data.comparison_highlights.emergency_median_wait_triage ?? triageGroups.EMERGENCY?.median_wait_minutes ?? 0}m | P90: {data.comparison_highlights.emergency_p90_triage ?? triageGroups.EMERGENCY?.p90_wait_minutes ?? 0}m
+                </span>
               </div>
             </div>
-            <div className="kpi-sub-text">
-              Wait Reduction: <strong>-{data.comparison_highlights.emergency_wait_reduction_percent}%</strong> (Target &le; 5m)
+            <div className="kpi-sub-text flex flex-col gap-1">
+              <div>
+                Simulated Reduction: <strong className="text-emerald-600">
+                  {data.comparison_highlights.emergency_wait_reduction_minutes !== undefined ? `-${data.comparison_highlights.emergency_wait_reduction_minutes}m` : ''} (-{data.comparison_highlights.emergency_wait_reduction_percent}%)
+                </strong>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Target &le; 5m | Breaches: FCFS {data.comparison_highlights.emergency_exceeded_target_fcfs} &rarr; Triage {data.comparison_highlights.emergency_exceeded_target_triage}
+              </div>
             </div>
           </div>
 
@@ -525,59 +764,90 @@ export const QueueSimulationPage: React.FC = () => {
               <div className="stat-side baseline">
                 <span className="stat-tag">BASELINE (FCFS)</span>
                 <span className="stat-num">{data.fcfs.overall.avg_wait_minutes}m</span>
+                <span className="text-[10px] text-slate-500">
+                  Med: {data.fcfs.overall.median_wait_minutes}m | P90: {data.fcfs.overall.p90_wait_minutes ?? 0}m
+                </span>
               </div>
               <div className="stat-arrow">&rarr;</div>
               <div className="stat-side proposed">
                 <span className="stat-tag">PROPOSED (TRIAGE)</span>
                 <span className="stat-num text-sky-600">{data.triage.overall.avg_wait_minutes}m</span>
+                <span className="text-[10px] text-slate-500">
+                  Med: {data.triage.overall.median_wait_minutes}m | P90: {data.triage.overall.p90_wait_minutes ?? 0}m
+                </span>
               </div>
             </div>
-            <div className="kpi-sub-text">
-              Median Wait: FCFS {data.fcfs.overall.median_wait_minutes}m &rarr; Triage {data.triage.overall.median_wait_minutes}m
+            <div className="kpi-sub-text flex flex-col gap-1">
+              <div>
+                Net Change: <strong className={(data.comparison_highlights.overall_wait_reduction_minutes ?? 0) >= 0 ? 'text-sky-700' : 'text-amber-700'}>
+                  {(data.comparison_highlights.overall_wait_reduction_minutes ?? 0) >= 0 ? `-${data.comparison_highlights.overall_wait_reduction_minutes}m` : `+${Math.abs(data.comparison_highlights.overall_wait_reduction_minutes ?? 0)}m`} ({(data.comparison_highlights.overall_wait_reduction_percent ?? 0) >= 0 ? `-${data.comparison_highlights.overall_wait_reduction_percent}%` : `+${Math.abs(data.comparison_highlights.overall_wait_reduction_percent ?? 0)}%`})
+                </strong>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                P75: FCFS {data.fcfs.overall.p75_wait_minutes ?? 0}m &rarr; Triage {data.triage.overall.p75_wait_minutes ?? 0}m
+              </div>
             </div>
           </div>
 
           {/* Card 3: Longest Simulated Wait */}
           <div className="kpi-card">
             <div className="kpi-header">
-              <span className="kpi-label">LONGEST SIMULATED WAIT (MAX)</span>
+              <span className="kpi-label">LONGEST WAIT & SAFEGUARDS</span>
               <Activity size={16} className="text-amber-500" />
             </div>
             <div className="kpi-stat-pair">
               <div className="stat-side baseline">
                 <span className="stat-tag">BASELINE (FCFS)</span>
                 <span className="stat-num">{data.fcfs.overall.max_wait_minutes}m</span>
+                <span className="text-[10px] text-slate-500">Min: {data.fcfs.overall.min_wait_minutes}m</span>
               </div>
               <div className="stat-arrow">&rarr;</div>
               <div className="stat-side proposed">
                 <span className="stat-tag">PROPOSED (TRIAGE)</span>
                 <span className="stat-num text-amber-600">{data.triage.overall.max_wait_minutes}m</span>
+                <span className="text-[10px] text-slate-500">Min: {data.triage.overall.min_wait_minutes}m</span>
               </div>
             </div>
-            <div className="kpi-sub-text">
-              Anti-Starvation Reassessments Triggered: <strong>{data.comparison_highlights.starvation_safeguards_triggered}</strong>
+            <div className="kpi-sub-text flex flex-col gap-1">
+              <div>
+                Anti-Starvation Safeguards: <strong>{data.comparison_highlights.starvation_safeguards_triggered} triggered</strong>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Prevents routine low-acuity cases from waiting indefinitely
+              </div>
             </div>
           </div>
 
           {/* Card 4: Maximum Queue Length & Completion */}
           <div className="kpi-card">
             <div className="kpi-header">
-              <span className="kpi-label">PEAK QUEUE BACKLOG & COMPLETION</span>
+              <span className="kpi-label">PEAK QUEUE & SERVED COUNTS</span>
               <Users size={16} className="text-teal-500" />
             </div>
             <div className="kpi-stat-pair">
               <div className="stat-side baseline">
                 <span className="stat-tag">MAX QUEUE (FCFS)</span>
                 <span className="stat-num">{data.max_queue_length?.fcfs ?? 0} pts</span>
+                <span className="text-[10px] text-slate-500">
+                  Served: {data.case_completion?.fcfs_completed ?? data.fcfs.overall.total_served ?? 0} ({data.case_completion?.fcfs_remaining ?? data.fcfs.overall.total_still_waiting ?? 0} waiting)
+                </span>
               </div>
               <div className="stat-arrow">&rarr;</div>
               <div className="stat-side proposed">
                 <span className="stat-tag">MAX QUEUE (TRIAGE)</span>
                 <span className="stat-num text-teal-600">{data.max_queue_length?.triage ?? 0} pts</span>
+                <span className="text-[10px] text-slate-500">
+                  Served: {data.case_completion?.triage_completed ?? data.triage.overall.total_served ?? 0} ({data.case_completion?.triage_remaining ?? data.triage.overall.total_still_waiting ?? 0} waiting)
+                </span>
               </div>
             </div>
-            <div className="kpi-sub-text">
-              Completed in {scenarioDuration}m: <strong>{data.case_completion?.triage_completed ?? 0}</strong> ({data.case_completion?.triage_remaining ?? 0} remaining)
+            <div className="kpi-sub-text flex flex-col gap-1">
+              <div>
+                Simulation Horizon: <strong>{scenarioDuration} minutes</strong> ({data.parameters.num_doctors} clinicians)
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Breaks: {doctorBreakMinutes > 0 ? `${doctorBreakMinutes}m every ${doctorBreakInterval / 60}h` : 'Continuous'}
+              </div>
             </div>
           </div>
         </div>
@@ -663,7 +933,12 @@ export const QueueSimulationPage: React.FC = () => {
                   Direct evaluation under identical simulated arrival stream ({numPatients} patients, {numDoctors} clinicians, seed {randomSeed}).
                 </p>
               </div>
-              <span className="badge-synthetic">SIMULATED EVALUATION</span>
+              <div className="flex items-center gap-2">
+                <span className="badge-synthetic">SIMULATED ESTIMATES</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                  Source: {data.dataset_source || data.data_source}
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -671,12 +946,13 @@ export const QueueSimulationPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Triage Category</th>
-                    <th className="text-center">Simulated Count</th>
-                    <th className="text-center">Clinical Target</th>
-                    <th className="text-right">FCFS Avg Wait</th>
-                    <th className="text-right text-sky-700">Triage Avg Wait</th>
-                    <th className="text-right">FCFS Max Wait</th>
-                    <th className="text-right text-sky-700">Triage Max Wait</th>
+                    <th className="text-center">Arrivals (Served / Wait)</th>
+                    <th className="text-center">Target</th>
+                    <th className="text-right">Baseline Mean (Med | P90)</th>
+                    <th className="text-right text-sky-700">Triage Mean (Med | P90)</th>
+                    <th className="text-right text-emerald-700">Wait Reduction</th>
+                    <th className="text-right">Baseline Max</th>
+                    <th className="text-right text-sky-700">Triage Max</th>
                     <th className="text-right">FCFS Breaches</th>
                     <th className="text-right text-emerald-700">Triage Breaches</th>
                     <th className="text-right text-teal-700">Adherence</th>
@@ -690,15 +966,42 @@ export const QueueSimulationPage: React.FC = () => {
                   ].map(([key, label, target, badgeClass]) => {
                     const fcfs = fcfsGroups[key] || {};
                     const tr = triageGroups[key] || {};
+                    const diffMin = Math.round(((fcfs.avg_wait_minutes ?? 0) - (tr.avg_wait_minutes ?? 0)) * 10) / 10;
+                    const pctChange = (fcfs.avg_wait_minutes && fcfs.avg_wait_minutes > 0)
+                      ? Math.round((diffMin / fcfs.avg_wait_minutes) * 1000) / 10
+                      : 0.0;
                     return (
                       <tr key={key}>
                         <td>
                           <span className={`urgency-pill ${badgeClass}`}>{label}</span>
                         </td>
-                        <td className="text-center font-bold">{tr.patient_count ?? 0}</td>
+                        <td className="text-center">
+                          <span className="font-bold">{tr.patient_count ?? 0}</span>
+                          <span className="text-xs text-slate-500 ml-1">
+                            ({tr.served_count ?? 0} srv / {tr.still_waiting_count ?? 0} wait)
+                          </span>
+                        </td>
                         <td className="text-center font-semibold text-slate-500">&le; {target}m</td>
-                        <td className="text-right font-mono">{fcfs.avg_wait_minutes ?? 0}m</td>
-                        <td className="text-right font-mono font-bold text-sky-700">{tr.avg_wait_minutes ?? 0}m</td>
+                        <td className="text-right font-mono">
+                          <strong>{fcfs.avg_wait_minutes ?? 0}m</strong>
+                          <span className="text-xs text-slate-500 block">
+                            (med {fcfs.median_wait_minutes ?? 0}m | p90 {fcfs.p90_wait_minutes ?? 0}m)
+                          </span>
+                        </td>
+                        <td className="text-right font-mono font-bold text-sky-700">
+                          <strong>{tr.avg_wait_minutes ?? 0}m</strong>
+                          <span className="text-xs text-sky-600 block font-normal">
+                            (med {tr.median_wait_minutes ?? 0}m | p90 {tr.p90_wait_minutes ?? 0}m)
+                          </span>
+                        </td>
+                        <td className="text-right font-mono font-bold">
+                          <span className={diffMin >= 0 ? 'text-emerald-700' : 'text-amber-700'}>
+                            {diffMin >= 0 ? `-${diffMin}m` : `+${Math.abs(diffMin)}m`}
+                            <span className="text-xs block font-normal">
+                              ({diffMin >= 0 ? `-${pctChange}%` : `+${Math.abs(pctChange)}%`})
+                            </span>
+                          </span>
+                        </td>
                         <td className="text-right font-mono">{fcfs.max_wait_minutes ?? 0}m</td>
                         <td className="text-right font-mono font-bold text-sky-700">{tr.max_wait_minutes ?? 0}m</td>
                         <td className="text-right font-mono text-red-600 font-semibold">{fcfs.exceeded_target_count ?? 0}</td>
@@ -708,23 +1011,88 @@ export const QueueSimulationPage: React.FC = () => {
                     );
                   })}
                   {/* Overall Summary Row */}
-                  <tr className="twin-table-total-row">
-                    <td>
-                      <strong>Total / Overall Average</strong>
-                    </td>
-                    <td className="text-center font-extrabold">{data.triage.overall.total_patients}</td>
-                    <td className="text-center text-slate-400">—</td>
-                    <td className="text-right font-mono font-bold">{data.fcfs.overall.avg_wait_minutes}m</td>
-                    <td className="text-right font-mono font-extrabold text-sky-700">{data.triage.overall.avg_wait_minutes}m</td>
-                    <td className="text-right font-mono">{data.fcfs.overall.max_wait_minutes}m</td>
-                    <td className="text-right font-mono font-bold text-sky-700">{data.triage.overall.max_wait_minutes}m</td>
-                    <td className="text-right font-mono text-red-600">{data.fcfs.overall.total_exceeded_target}</td>
-                    <td className="text-right font-mono text-emerald-700 font-bold">{data.triage.overall.total_exceeded_target}</td>
-                    <td className="text-right font-extrabold text-teal-700">{data.triage.overall.target_adherence_rate}%</td>
-                  </tr>
+                  {(() => {
+                    const totalDiffMin = Math.round(((data.fcfs.overall.avg_wait_minutes ?? 0) - (data.triage.overall.avg_wait_minutes ?? 0)) * 10) / 10;
+                    const totalPctChange = (data.fcfs.overall.avg_wait_minutes && data.fcfs.overall.avg_wait_minutes > 0)
+                      ? Math.round((totalDiffMin / data.fcfs.overall.avg_wait_minutes) * 1000) / 10
+                      : 0.0;
+                    return (
+                      <tr className="twin-table-total-row">
+                        <td>
+                          <strong>Total / Overall Average</strong>
+                        </td>
+                        <td className="text-center font-extrabold">
+                          {data.triage.overall.total_patients}
+                          <span className="text-xs text-slate-500 font-normal ml-1">
+                            ({data.case_completion?.triage_completed ?? data.triage.overall.total_served ?? 0} srv / {data.case_completion?.triage_remaining ?? data.triage.overall.total_still_waiting ?? 0} wait)
+                          </span>
+                        </td>
+                        <td className="text-center text-slate-400">—</td>
+                        <td className="text-right font-mono font-bold">
+                          {data.fcfs.overall.avg_wait_minutes}m
+                          <span className="text-xs text-slate-500 block font-normal">
+                            (med {data.fcfs.overall.median_wait_minutes}m | p90 {data.fcfs.overall.p90_wait_minutes ?? 0}m)
+                          </span>
+                        </td>
+                        <td className="text-right font-mono font-extrabold text-sky-700">
+                          {data.triage.overall.avg_wait_minutes}m
+                          <span className="text-xs text-sky-600 block font-normal">
+                            (med {data.triage.overall.median_wait_minutes}m | p90 {data.triage.overall.p90_wait_minutes ?? 0}m)
+                          </span>
+                        </td>
+                        <td className="text-right font-mono font-bold">
+                          <span className={totalDiffMin >= 0 ? 'text-emerald-700' : 'text-amber-700'}>
+                            {totalDiffMin >= 0 ? `-${totalDiffMin}m` : `+${Math.abs(totalDiffMin)}m`}
+                            <span className="text-xs block font-normal">
+                              ({totalDiffMin >= 0 ? `-${totalPctChange}%` : `+${Math.abs(totalPctChange)}%`})
+                            </span>
+                          </span>
+                        </td>
+                        <td className="text-right font-mono">{data.fcfs.overall.max_wait_minutes}m</td>
+                        <td className="text-right font-mono font-bold text-sky-700">{data.triage.overall.max_wait_minutes}m</td>
+                        <td className="text-right font-mono text-red-600">{data.fcfs.overall.total_exceeded_target}</td>
+                        <td className="text-right font-mono text-emerald-700 font-bold">{data.triage.overall.total_exceeded_target}</td>
+                        <td className="text-right font-extrabold text-teal-700">{data.triage.overall.target_adherence_rate}%</td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
+
+            {/* Case Completion & Horizon Status Breakdown */}
+            {data.case_completion?.by_urgency && (
+              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+                  <Clock size={14} className="text-sky-600" />
+                  Patient Service & Completion Status at Simulation Horizon ({scenarioDuration} minutes)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {Object.entries(data.case_completion.by_urgency).map(([catKey, item]) => {
+                    const fcfsCompPct = item.total_arrived > 0 ? Math.round((item.fcfs_completed / item.total_arrived) * 100) : 100;
+                    const triageCompPct = item.total_arrived > 0 ? Math.round((item.triage_completed / item.total_arrived) * 100) : 100;
+                    return (
+                      <div key={catKey} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs">
+                        <div className="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                          <span>{item.urgency_category}</span>
+                          <span className="text-slate-500 font-normal">{item.total_arrived} total</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <span>Baseline (FCFS):</span>
+                            <span><strong>{item.fcfs_completed}</strong> served ({item.fcfs_still_waiting} waiting &bull; {fcfsCompPct}%)</span>
+                          </div>
+                          <div className="flex justify-between text-sky-700 dark:text-sky-400 font-semibold">
+                            <span>Proposed (Triage):</span>
+                            <span><strong>{item.triage_completed}</strong> served ({item.triage_still_waiting} waiting &bull; {triageCompPct}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -970,8 +1338,44 @@ export const QueueSimulationPage: React.FC = () => {
             <h3 className="methodology-title">Simulation Modeling Framework & Mathematical Assumptions</h3>
             <p className="methodology-lead">{data.methodology_and_limitations.methodology}</p>
 
-            <div className="methodology-section mt-4">
-              <h4 className="section-heading">Key Discrete-Event Queue Assumptions</h4>
+            {/* Explicit Assumptions Documentation */}
+            {data.assumptions_documentation && (
+              <div className="methodology-section mt-6">
+                <h4 className="section-heading flex items-center gap-2">
+                  <Sliders size={16} className="text-sky-600" />
+                  Explicit Policy & System Assumptions Documentation
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  {Object.entries(data.assumptions_documentation).map(([k, text]) => {
+                    const labelMap: Record<string, string> = {
+                      dataset_source: 'Arrival Log & Data Influx',
+                      arrival_order_rule: 'Baseline FCFS Arrival Ordering',
+                      equal_priority_rule: 'Equal-Priority Tie-Breaking Rule',
+                      emergency_escalation_rule: 'Critical Safety Escalation Invariant',
+                      doctor_staffing: 'Doctor Availability & Staffing Model',
+                      doctor_breaks: 'Doctor Rest Breaks & Shifts',
+                      service_durations: 'Consultation Duration Model',
+                      capacity_limitations: 'Capacity & Departmental Scope',
+                      disclaimer: 'Scientific Limitations Disclaimer',
+                    };
+                    const title = labelMap[k] || k.replace(/_/g, ' ').toUpperCase();
+                    return (
+                      <div key={k} className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                          {title}
+                        </span>
+                        <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                          {text}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="methodology-section mt-6">
+              <h4 className="section-heading">Discrete-Event Mathematical Principles</h4>
               <ul className="methodology-list">
                 {data.methodology_and_limitations.assumptions.map((assump, i) => (
                   <li key={i}>{assump}</li>
@@ -979,7 +1383,7 @@ export const QueueSimulationPage: React.FC = () => {
               </ul>
             </div>
 
-            <div className="methodology-disclaimer-box mt-4">
+            <div className="methodology-disclaimer-box mt-6">
               <ShieldCheck size={20} className="text-sky-600 flex-shrink-0" />
               <div>
                 <h5 className="disclaimer-heading">Scientific Disclaimer on Hospital Digital Twin Models</h5>

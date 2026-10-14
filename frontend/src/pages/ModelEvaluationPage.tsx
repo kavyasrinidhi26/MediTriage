@@ -435,13 +435,23 @@ export const ModelEvaluationPage: React.FC = () => {
                   CRITICAL
                 </span>
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: '#991b1b', lineHeight: 1.1 }}>
-                {triage?.emergency_recall_sensitivity !== undefined
+              <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#991b1b', lineHeight: 1.1 }}>
+                {triage?.is_emergency_set_empty
+                  ? 'N/A'
+                  : triage?.emergency_recall_sensitivity !== undefined && triage?.emergency_recall_sensitivity !== null
                   ? `${(triage.emergency_recall_sensitivity * 100).toFixed(1)}%`
                   : 'N/A'}
               </div>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
-                Emergency cases correctly prioritized as Level 1
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#b91c1c', marginTop: '0.35rem' }}>
+                {triage?.emergency_recall_display ||
+                  (triage?.emergency_recall_numerator !== undefined && triage?.emergency_cases_total !== undefined
+                    ? `${triage.emergency_recall_numerator} / ${triage.emergency_cases_total} (${(
+                        (triage.emergency_recall_sensitivity || 0) * 100
+                      ).toFixed(1)}%)`
+                    : '')}
+              </div>
+              <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
+                Numerator: detected emergencies &bull; Denominator: true emergencies
               </p>
             </div>
 
@@ -498,7 +508,7 @@ export const ModelEvaluationPage: React.FC = () => {
                 </span>
               </div>
               <div style={{ fontSize: '2rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>
-                {triage?.emergency_precision !== undefined
+                {triage?.emergency_precision !== undefined && triage?.emergency_precision !== null
                   ? `${(triage.emergency_precision * 100).toFixed(1)}%`
                   : triage?.per_class_metrics?.['1']?.precision !== undefined
                   ? `${(triage.per_class_metrics['1'].precision * 100).toFixed(1)}%`
@@ -561,6 +571,154 @@ export const ModelEvaluationPage: React.FC = () => {
               <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.4rem 0 0 0' }}>
                 Evaluated on {sampleCount} records in {activeSplit} split
               </p>
+            </div>
+          </div>
+
+          {/* Asymmetric Clinical Safety & Explicit Abstention Section */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+              gap: '1.25rem',
+              marginBottom: '1.5rem',
+            }}
+          >
+            {/* Asymmetric Cost Card */}
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #fed7aa',
+                borderRadius: '8px',
+                padding: '1.25rem',
+                borderLeft: '4px solid #f97316',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#9a3412', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ShieldAlert size={18} />
+                  <span>Asymmetric Safety Cost (20x Under-Triage Penalty)</span>
+                </h4>
+                <span
+                  style={{
+                    background: '#ffedd5',
+                    color: '#9a3412',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  20&times; PENALTY
+                </span>
+              </div>
+              <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0 0 0.75rem 0' }}>
+                Clinical loss function weighting under-triaged true emergencies at 20x vs routine discrepancies at 1x.
+              </p>
+
+              {(() => {
+                const cost = triage?.asymmetric_clinical_cost || data.asymmetric_clinical_cost;
+                return cost ? (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div style={{ background: '#fff7ed', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#c2410c', fontWeight: 600 }}>Emergency Under-Triage</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: cost.emergency_under_triage_count > 0 ? '#dc2626' : '#16a34a' }}>
+                          {cost.emergency_under_triage_count}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#9a3412' }}>Cost (20x): {cost.emergency_under_triage_cost.toFixed(1)}</div>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Routine Discrepancies</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
+                          {cost.non_emergency_misclassifications_count}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Cost (1x): {cost.non_emergency_misclassifications_count.toFixed(1)}</div>
+                      </div>
+                      <div style={{ background: '#fff7ed', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#c2410c', fontWeight: 600 }}>Total Clinical Loss</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#9a3412' }}>
+                          {cost.total_asymmetric_clinical_loss.toFixed(1)}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#9a3412' }}>Mean/pt: {cost.mean_clinical_loss_per_patient.toFixed(3)}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#9a3412', background: '#fff7ed', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
+                      <strong>Status:</strong> Provisional specification internally implemented (no external <code>evaluate.py</code> provided).
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: '#64748b', fontSize: '0.8rem' }}>Asymmetric cost metrics unavailable for this split.</p>
+                );
+              })()}
+            </div>
+
+            {/* Explicit Abstention Card */}
+            <div
+              style={{
+                background: '#fff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '8px',
+                padding: '1.25rem',
+                borderLeft: '4px solid #3b82f6',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e40af', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Brain size={18} />
+                  <span>Explicit Abstention & Nurse Escalation</span>
+                </h4>
+                <span
+                  style={{
+                    background: '#dbeafe',
+                    color: '#1e40af',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  SAFETY HOLD
+                </span>
+              </div>
+              <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0 0 0.75rem 0' }}>
+                Explicit mandate: <em>&ldquo;Cannot assess &mdash; send to nurse now.&rdquo;</em> on insufficient or uncertain inputs.
+              </p>
+
+              {(() => {
+                const abst = triage?.abstention_metrics || data.abstention_metrics;
+                return abst ? (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div style={{ background: '#eff6ff', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Abstention Count</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e40af' }}>
+                          {abst.abstention_count}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#3b82f6' }}>Rate: {(abst.abstention_rate * 100).toFixed(1)}%</div>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Autonomous Recall</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
+                          {abst.autonomous_emergency_recall !== null ? `${(abst.autonomous_emergency_recall * 100).toFixed(1)}%` : 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Excludes abstentions</div>
+                      </div>
+                      <div style={{ background: '#eff6ff', padding: '0.6rem 0.75rem', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 600 }}>Workflow Safety Rate</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#15803d' }}>
+                          {abst.workflow_safety_rate_with_nurse_review !== null ? `${(abst.workflow_safety_rate_with_nurse_review * 100).toFixed(1)}%` : 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#15803d' }}>With nurse safety review</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#1e40af', background: '#eff6ff', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
+                      <strong>Clinical Invariant:</strong> Abstention cases are prioritized for rapid nurse intake &bull; Never placed at end of queue &bull; Never counted as autonomous ML Level 1 predictions.
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: '#64748b', fontSize: '0.8rem' }}>Abstention metrics unavailable for this split.</p>
+                );
+              })()}
             </div>
           </div>
 

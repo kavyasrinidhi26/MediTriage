@@ -81,8 +81,12 @@ class TriageAssessmentResult(BaseModel):
     triage_level_name: Optional[str] = Field(None, description="5-level triage acuity name")
     urgency_score: int = Field(..., ge=1, le=10, description="Urgency priority score (10 = highest immediate threat, 1 = routine)")
     recommended_department: SpecialtyDepartment
+    department_reason: Optional[str] = Field(None, description="Clinical rationale for recommended department")
+    requires_department_review: bool = Field(False, description="Flag indicating multiple plausible departments or vague routing requiring nurse review")
     red_flags_identified: List[str]
     vital_abnormalities: List[str]
+    observed_facts: List[str] = Field(default_factory=list, description="Verified objective intake observations")
+    inferred_risks: List[str] = Field(default_factory=list, description="Inferred physiological risk factors")
     clinical_rationale: List[str]
     recommended_action: str
     max_recommended_wait_minutes: int
@@ -227,13 +231,14 @@ class AssessmentRequest(BaseModel):
     chief_complaint: Optional[str] = Field(None, max_length=1000)
     complaint_language: str = Field(default="English", max_length=32)
     known_conditions: List[str] = Field(default_factory=list)
-    systolic_bp: Optional[int] = Field(None, ge=40, le=300)
-    diastolic_bp: Optional[int] = Field(None, ge=20, le=200)
+    medications: Optional[Any] = Field(default_factory=list)
+    systolic_bp: Optional[int] = Field(None, le=300)
+    diastolic_bp: Optional[int] = Field(None, le=200)
     pulse_bpm: Optional[int] = Field(None, ge=0, le=300)
     temperature: Optional[float] = None
     temperature_unit: str = Field(default="F", pattern="^(F|C)$")
-    spo2: Optional[float] = Field(None, ge=30.0, le=100.0)
-    respiratory_rate: Optional[int] = Field(None, ge=5, le=80)
+    spo2: Optional[float] = Field(None, le=100.0)
+    respiratory_rate: Optional[int] = Field(None, le=80)
     notes: Optional[str] = None
 
 
@@ -241,12 +246,16 @@ class AssessmentResponse(BaseModel):
     triage_level: int = Field(..., ge=1, le=5, description="Triage urgency level (1-5)")
     triage_level_name: str
     recommended_department: str
+    department_reason: Optional[str] = None
+    requires_department_review: bool = False
     detected_red_flags: List[str]
     model_explanation: str
     triggered_safety_rule_ids: List[str]
     safety_rule_explanations: List[str]
     missing_data_warnings: List[str]
     invalid_data_warnings: List[str]
+    observed_facts: List[str] = Field(default_factory=list)
+    inferred_risks: List[str] = Field(default_factory=list)
     human_review_required: bool
     abstention_status: str
     model_version: str
@@ -344,6 +353,17 @@ class SimulationRequest(BaseModel):
     scenario_duration_minutes: Optional[int] = Field(default=240, ge=30, le=720)
     avg_service_duration: Optional[int] = Field(default=None, ge=1, le=120)
     custom_arrivals: Optional[List[Dict[str, Any]]] = None
+    dataset_source: Optional[str] = Field(default="synthetic", description="'synthetic' | 'database' | 'custom' | 'official'")
+    doctor_break_minutes: Optional[int] = Field(default=0, ge=0, le=120)
+    doctor_break_interval_minutes: Optional[int] = Field(default=240, ge=30, le=480)
+
+
+class ArrivalLogStatusResponse(BaseModel):
+    official_log_available: bool
+    official_log_filename: Optional[str] = None
+    limitation_statement: str
+    database_records_count: int
+    synthetic_demo_available: bool = True
 
 
 class RunEvaluationRequest(BaseModel):

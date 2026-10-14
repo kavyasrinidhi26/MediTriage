@@ -983,10 +983,12 @@ body {
 .table-responsive-container {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .patient-queue-table {
   width: 100%;
+  min-width: 780px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -2106,6 +2108,14 @@ body {
     padding: 0 16px;
   }
 
+  .project-subheading {
+    display: none;
+  }
+
+  .demo-env-badge {
+    display: none;
+  }
+
   .current-date-chip {
     display: none;
   }
@@ -2131,6 +2141,35 @@ body {
 
   .modal-vitals-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Small Smartphone Screens (<= 480px) */
+@media (max-width: 480px) {
+  .top-navbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .project-heading {
+    font-size: 0.95rem;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .top-navbar-right {
+    gap: 6px;
+  }
+
+  .system-status-indicator .status-label {
+    display: none;
+  }
+
+  .top-navbar-staff-btn {
+    padding: 6px 8px;
+    font-size: 0.8rem;
   }
 }
 

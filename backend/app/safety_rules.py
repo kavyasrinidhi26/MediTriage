@@ -9,6 +9,7 @@ from app.nlp.symptom_dictionary import (
     CONCEPT_ALTERED_SENSORIUM,
     CONCEPT_SEVERE_BLEEDING,
     CONCEPT_SEIZURE,
+    CONCEPT_STROKE_DEFICIT,
 )
 
 # Versioned rules derived from domain primer (docs/TRIAGE_CRITERIA.md)
@@ -75,13 +76,13 @@ def to_fahrenheit(temp: Optional[float], unit: str) -> Optional[float]:
 
 
 def evaluate_data_quality(
-    age: Optional[int],
-    gender: Optional[str],
-    chief_complaint: Optional[str],
-    systolic_bp: Optional[int],
-    diastolic_bp: Optional[int],
-    pulse_bpm: Optional[int],
-    temperature: Optional[float],
+    age: Optional[int] = None,
+    gender: Optional[str] = None,
+    chief_complaint: Optional[str] = None,
+    systolic_bp: Optional[int] = None,
+    diastolic_bp: Optional[int] = None,
+    pulse_bpm: Optional[int] = None,
+    temperature: Optional[float] = None,
     temperature_unit: str = "F",
     spo2: Optional[float] = None,
     notes: Optional[str] = None,
@@ -94,17 +95,43 @@ def evaluate_data_quality(
     """
     issues: List[DataQualityIssue] = []
 
+    # Safe numerical coercion with explicit non-numeric error detection
+    def _parse_val(val, val_type, field_name):
+        if val is None or val == "":
+            return None, False
+        try:
+            return val_type(val), False
+        except (ValueError, TypeError):
+            issues.append(
+                DataQualityIssue(
+                    field=field_name,
+                    status=DataQualityStatus.MALFORMED,
+                    code=f"MALFORMED_{field_name.upper()}",
+                    message=f"{field_name} value '{val}' is non-numeric or malformed. Numerical value required.",
+                    is_blocking=True,
+                )
+            )
+            return None, True
+
+    age, age_err = _parse_val(age, int, "age")
+    systolic_bp, sbp_err = _parse_val(systolic_bp, int, "systolic_bp")
+    diastolic_bp, dbp_err = _parse_val(diastolic_bp, int, "diastolic_bp")
+    pulse_bpm, pulse_err = _parse_val(pulse_bpm, int, "pulse_bpm")
+    temperature, temp_err = _parse_val(temperature, float, "temperature")
+    spo2, spo2_err = _parse_val(spo2, float, "spo2")
+
     # 1. Age quality
     if age is None:
-        issues.append(
-            DataQualityIssue(
-                field="age",
-                status=DataQualityStatus.MISSING,
-                code="MISSING_AGE",
-                message="Patient age is missing.",
-                is_blocking=True,
+        if not age_err:
+            issues.append(
+                DataQualityIssue(
+                    field="age",
+                    status=DataQualityStatus.MISSING,
+                    code="MISSING_AGE",
+                    message="Patient age is missing.",
+                    is_blocking=True,
+                )
             )
-        )
     elif age < 0 or age > 130:
         issues.append(
             DataQualityIssue(
@@ -146,15 +173,16 @@ def evaluate_data_quality(
     has_dia = diastolic_bp is not None
 
     if not has_sys and not has_dia:
-        issues.append(
-            DataQualityIssue(
-                field="blood_pressure",
-                status=DataQualityStatus.MISSING,
-                code="MISSING_BP",
-                message="Blood pressure was not recorded at intake. Will NOT be assumed normal (120/80 mmHg).",
-                is_blocking=False,
+        if not sbp_err and not dbp_err:
+            issues.append(
+                DataQualityIssue(
+                    field="blood_pressure",
+                    status=DataQualityStatus.MISSING,
+                    code="MISSING_BP",
+                    message="Blood pressure was not recorded at intake. Will NOT be assumed normal (120/80 mmHg).",
+                    is_blocking=False,
+                )
             )
-        )
     elif has_sys and not has_dia:
         issues.append(
             DataQualityIssue(
@@ -176,37 +204,48 @@ def evaluate_data_quality(
             )
         )
     else:
-        # Both provided: Check range and contradiction
-        if systolic_bp < 40 or systolic_bp > 300:
-            issues.append(
-                DataQualityIssue(
-                    field="systolic_bp",
-                    status=DataQualityStatus.MALFORMED,
-                    code="OUT_OF_RANGE_SYSTOLIC",
-                    message=f"Systolic BP {systolic_bp} mmHg is outside viable recording range [40, 300].",
-                    is_blocking=True,
-                )
-            )
-        if diastolic_bp < 20 or diastolic_bp > 200:
-            issues.append(
-                DataQualityIssue(
-                    field="diastolic_bp",
-                    status=DataQualityStatus.MALFORMED,
-                    code="OUT_OF_RANGE_DIASTOLIC",
-                    message=f"Diastolic BP {diastolic_bp} mmHg is outside viable recording range [20, 200].",
-                    is_blocking=True,
-                )
-            )
-        if systolic_bp <= diastolic_bp:
+        # Both provided: Check range, zero BP, and contradiction
+        if systolic_bp == 0 or diastolic_bp == 0:
             issues.append(
                 DataQualityIssue(
                     field="blood_pressure",
-                    status=DataQualityStatus.CONTRADICTORY,
-                    code="CONTRADICTORY_BP_VALUES",
-                    message=f"Systolic BP ({systolic_bp}) must be strictly greater than Diastolic BP ({diastolic_bp}). Data entry error.",
+                    status=DataQualityStatus.MALFORMED,
+                    code="ZERO_BLOOD_PRESSURE",
+                    message=f"Blood pressure recorded as 0 mmHg ({systolic_bp}/{diastolic_bp} mmHg). Non-viable or unmeasurable reading. Palpate carotid pulse; re-verify manual BP.",
                     is_blocking=True,
                 )
             )
+        else:
+            if systolic_bp < 40 or systolic_bp > 300:
+                issues.append(
+                    DataQualityIssue(
+                        field="systolic_bp",
+                        status=DataQualityStatus.MALFORMED,
+                        code="OUT_OF_RANGE_SYSTOLIC",
+                        message=f"Systolic BP {systolic_bp} mmHg is outside viable recording range [40, 300].",
+                        is_blocking=True,
+                    )
+                )
+            if diastolic_bp < 20 or diastolic_bp > 200:
+                issues.append(
+                    DataQualityIssue(
+                        field="diastolic_bp",
+                        status=DataQualityStatus.MALFORMED,
+                        code="OUT_OF_RANGE_DIASTOLIC",
+                        message=f"Diastolic BP {diastolic_bp} mmHg is outside viable recording range [20, 200].",
+                        is_blocking=True,
+                    )
+                )
+            if systolic_bp <= diastolic_bp:
+                issues.append(
+                    DataQualityIssue(
+                        field="blood_pressure",
+                        status=DataQualityStatus.CONTRADICTORY,
+                        code="CONTRADICTORY_BP_VALUES",
+                        message=f"Systolic BP ({systolic_bp}) must be strictly greater than Diastolic BP ({diastolic_bp}). Data entry error.",
+                        is_blocking=True,
+                    )
+                )
 
     # 5. Pulse quality
     if pulse_bpm is None:
@@ -348,6 +387,7 @@ def evaluate_clinical_escalation_rules(
     temperature: Optional[float] = None,
     temperature_unit: str = "F",
     spo2: Optional[float] = None,
+    respiratory_rate: Optional[int] = None,
     red_flags: Optional[Dict[str, bool]] = None,
     age: Optional[int] = None,
     gender: Optional[str] = None,
@@ -365,8 +405,16 @@ def evaluate_clinical_escalation_rules(
     red_flags = red_flags or {}
 
 
-    # CRIT-RULE-PULSE-0: Pulse entered as zero
-    if pulse_bpm == 0:
+    # Contradiction check: Is patient alert/walking?
+    complaint_lower = (chief_complaint or "").lower()
+    conscious_keywords = [
+        "fully alert", "talking normally", "talking", "conversing", "walking",
+        "walked", "eating", "asymptomatic", "alert"
+    ]
+    is_ambulatory_or_alert = any(kw in complaint_lower for kw in conscious_keywords)
+
+    # CRIT-RULE-PULSE-0: Pulse entered as zero (only if not ambulatory/alert contradiction)
+    if pulse_bpm == 0 and not is_ambulatory_or_alert:
         alerts.append(
             ClinicalAlert(
                 rule_id="CRIT-RULE-PULSE-0",
@@ -405,8 +453,8 @@ def evaluate_clinical_escalation_rules(
             )
         )
 
-    # CRIT-RULE-SHOCK-BP: Systolic BP < 90 mmHg
-    if systolic_bp is not None and systolic_bp < 90:
+    # CRIT-RULE-SHOCK-BP: Systolic BP < 90 mmHg (physiological reading > 0)
+    if systolic_bp is not None and 0 < systolic_bp < 90:
         alerts.append(
             ClinicalAlert(
                 rule_id="CRIT-RULE-SHOCK-BP",
@@ -432,9 +480,21 @@ def evaluate_clinical_escalation_rules(
             )
         )
 
-    # CRIT-RULE-TEMP-96-HYPOTHERMIA: Temperature 96°F clinical verification
+    # Temperature rules
     temp_f = to_fahrenheit(temperature, temperature_unit)
-    if temp_f is not None and abs(temp_f - 96.0) <= 0.3:
+    if temp_f is not None and (0 < temp_f < 95.0):
+        alerts.append(
+            ClinicalAlert(
+                rule_id="CRIT-RULE-SEVERE-HYPOTHERMIA",
+                rule_name="Severe Hypothermia (Temp < 95.0°F)",
+                acuity_level=RuleAcuity.EMERGENCY,
+                message=f"🚨 SEVERE HYPOTHERMIA: Core body temperature is {temp_f}°F (< 95.0°F).",
+                clinical_explanation="Severe accidental or metabolic hypothermia risking fatal ventricular arrhythmias or cardiac arrest.",
+                required_human_verification="Initiate active core and external rewarming with warm blankets/IV fluids, avoid rough movement, monitor ECG continuously.",
+                is_critical_override=True,
+            )
+        )
+    elif temp_f is not None and abs(temp_f - 96.0) <= 0.3:
         alerts.append(
             ClinicalAlert(
                 rule_id="CRIT-RULE-TEMP-96-HYPOTHERMIA",
@@ -446,7 +506,7 @@ def evaluate_clinical_escalation_rules(
                 is_critical_override=False,
             )
         )
-    elif temp_f is not None and temp_f >= 104.0:
+    elif temp_f is not None and 104.0 <= temp_f <= 115.0:
         alerts.append(
             ClinicalAlert(
                 rule_id="CRIT-RULE-HIGH-HYPERPYREXIA",
@@ -459,7 +519,7 @@ def evaluate_clinical_escalation_rules(
             )
         )
 
-    # Tachycardia / Bradycardia
+    # Tachycardia / Bradycardia rules
     if pulse_bpm is not None and pulse_bpm > 130:
         alerts.append(
             ClinicalAlert(
@@ -484,15 +544,53 @@ def evaluate_clinical_escalation_rules(
                 is_critical_override=False,
             )
         )
-    elif pulse_bpm is not None and (0 < pulse_bpm < 50):
+    elif pulse_bpm is not None and (0 < pulse_bpm < 40):
+        alerts.append(
+            ClinicalAlert(
+                rule_id="CRIT-RULE-SEVERE-BRADYCARDIA",
+                rule_name="Severe Bradycardia (Pulse < 40 bpm)",
+                acuity_level=RuleAcuity.EMERGENCY,
+                message=f"🚨 CRITICAL BRADYCARDIA: Heart rate is {pulse_bpm} bpm (< 40 bpm).",
+                clinical_explanation="Profound bradycardia risking complete heart block, hemodynamic collapse, or ventricular standstill.",
+                required_human_verification="Immediately verify pulse manually, place on continuous cardiac monitor, prepare transcutaneous pacing / atropine.",
+                is_critical_override=True,
+            )
+        )
+    elif pulse_bpm is not None and (40 <= pulse_bpm < 50):
         alerts.append(
             ClinicalAlert(
                 rule_id="WARN-RULE-BRADYCARDIA",
-                rule_name="Severe Bradycardia (Pulse < 50 bpm)",
+                rule_name="Borderline Bradycardia (Pulse 40-50 bpm)",
                 acuity_level=RuleAcuity.PRIORITY,
                 message=f"⚠️ BRADYCARDIA: Heart rate is {pulse_bpm} bpm.",
                 clinical_explanation="Risk of heart block, nodal rhythm, or syncope.",
                 required_human_verification="Verify pulse manually and obtain urgent ECG.",
+                is_critical_override=False,
+            )
+        )
+
+    # Respiratory Rate rules (documented rubric: > 30 or < 8 /min is Critical Level 1; 21-30 is Warning)
+    if respiratory_rate is not None and (respiratory_rate > 30 or (0 < respiratory_rate < 8)):
+        alerts.append(
+            ClinicalAlert(
+                rule_id="CRIT-RULE-SEVERE-RESPIRATORY-RATE",
+                rule_name="Severe Respiratory Compromise (RR > 30 or < 8 /min)",
+                acuity_level=RuleAcuity.EMERGENCY,
+                message=f"🚨 RESPIRATORY FAILURE RISK: Respiratory rate is {respiratory_rate} /min.",
+                clinical_explanation="Extreme tachypnea or bradypnea indicates impending respiratory muscle exhaustion, severe metabolic acidosis, or acute ventilatory arrest.",
+                required_human_verification="Secure airway, administer high-flow oxygen, prepare bag-valve-mask ventilatory support, transfer to resuscitation bay.",
+                is_critical_override=True,
+            )
+        )
+    elif respiratory_rate is not None and (21 <= respiratory_rate <= 30):
+        alerts.append(
+            ClinicalAlert(
+                rule_id="WARN-RULE-RESPIRATORY-RATE",
+                rule_name="Borderline Tachypnea (RR 21-30 /min)",
+                acuity_level=RuleAcuity.PRIORITY,
+                message=f"⚠️ ELEVATED RESPIRATORY RATE: Respiratory rate is {respiratory_rate} /min.",
+                clinical_explanation="Abnormal compensatory respiratory effort requiring expedited medical evaluation.",
+                required_human_verification="Assess lung sounds, monitor pulse oximetry, position patient upright.",
                 is_critical_override=False,
             )
         )
@@ -587,6 +685,18 @@ def evaluate_clinical_escalation_rules(
                         is_critical_override=True,
                     )
                 )
+            elif rf_concept == CONCEPT_STROKE_DEFICIT and not red_flags.get("acute_neurological_deficit"):
+                alerts.append(
+                    ClinicalAlert(
+                        rule_id="CRIT-RULE-NLP-STROKE",
+                        rule_name="Acute Stroke / Focal Neurological Deficit",
+                        acuity_level=RuleAcuity.EMERGENCY,
+                        message="🚨 CRITICAL ALERT: Acute stroke symptoms or focal neurological deficit detected in presenting complaint.",
+                        clinical_explanation="Suspected acute cerebrovascular accident (ischemic or hemorrhagic stroke). Time-critical window for thrombolysis / mechanical thrombectomy.",
+                        required_human_verification="STAT non-contrast head CT, blood glucose check, NIHSS assessment, alert Stroke / Neurology Code team.",
+                        is_critical_override=True,
+                    )
+                )
 
         if complaint_res.requires_nurse_review and complaint_res.review_reason:
             alerts.append(
@@ -611,11 +721,36 @@ def apply_safety_override(
 ) -> SafetyEvaluationResult:
     """
     Combines data quality issues and clinical escalation rules.
-    If blocking data-quality issues exist, holds for re-entry.
-    Ensures validated critical rules override any lower-urgency ML prediction.
+    If blocking data-quality issues exist without emergency signs, holds for re-entry.
+    Ensures validated critical rules override any lower-urgency ML prediction, and
+    data validation errors never suppress an active emergency complaint or critical escalation.
     """
+    critical_rules = [a for a in clinical_alerts if a.is_critical_override]
+    priority_rules = [a for a in clinical_alerts if a.acuity_level == RuleAcuity.PRIORITY]
+    triggered_ids = [a.rule_id for a in clinical_alerts]
     has_blocking_data_error = any(issue.is_blocking for issue in data_quality_issues)
 
+    # 1. EMERGENCY NON-SUPPRESSION: If a critical emergency rule is triggered (e.g. crushing chest pain,
+    # severe respiratory distress, acute bleeding), vital-sign data errors must NEVER suppress the emergency.
+    if critical_rules:
+        verification_parts = [a.required_human_verification for a in critical_rules]
+        if has_blocking_data_error:
+            blocking_msgs = [i.message for i in data_quality_issues if i.is_blocking]
+            verification_parts.append(f"DATA INTEGRITY WARNING: {'; '.join(blocking_msgs)}")
+        return SafetyEvaluationResult(
+            rule_version=SAFETY_RULE_VERSION,
+            is_data_acceptable=not has_blocking_data_error,
+            data_quality_issues=data_quality_issues,
+            triggered_rule_ids=triggered_ids + [i.code for i in data_quality_issues],
+            clinical_alerts=clinical_alerts,
+            original_model_prediction=model_prediction,
+            override_applied=True,
+            final_urgency_level="EMERGENCY",
+            required_verification="; ".join(verification_parts),
+            escalation_status="ESCALATED_EMERGENCY",
+        )
+
+    # 2. Blocking data errors without emergency -> Explicit Abstention to Nurse
     if has_blocking_data_error:
         blocking_msgs = [i.message for i in data_quality_issues if i.is_blocking]
         return SafetyEvaluationResult(
@@ -631,22 +766,11 @@ def apply_safety_override(
             escalation_status="Cannot assess — send to nurse now.",
         )
 
-    # Check for critical rules that override lower ML predictions
-    critical_rules = [a for a in clinical_alerts if a.is_critical_override]
-    priority_rules = [a for a in clinical_alerts if a.acuity_level == RuleAcuity.PRIORITY]
-
-    triggered_ids = [a.rule_id for a in clinical_alerts]
+    # 3. Standard clinical priority overrides over ordinary predictions
     override_applied = False
     final_acuity = model_prediction or "ROUTINE"
 
-    if critical_rules:
-        # Override to EMERGENCY if not already EMERGENCY
-        if final_acuity != "EMERGENCY":
-            override_applied = True
-        final_acuity = "EMERGENCY"
-        escalation_status = "ESCALATED_EMERGENCY"
-        verification = "; ".join(a.required_human_verification for a in critical_rules)
-    elif priority_rules:
+    if priority_rules:
         if final_acuity == "ROUTINE":
             override_applied = True
             final_acuity = "PRIORITY"

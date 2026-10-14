@@ -17,6 +17,8 @@ from app.ml.schema import (
     NUMERICAL_FEATURE_COLUMNS,
     CATEGORICAL_FEATURE_COLUMNS,
 )
+from app.schemas import RedFlagChecklist
+from app.triage_engine import determine_department_with_reason
 from app.safety_rules import (
     evaluate_data_quality,
     evaluate_clinical_escalation_rules,
@@ -86,7 +88,7 @@ class TriageInferenceService:
         spo2: Optional[float] = None,
         respiratory_rate: Optional[int] = None,
         notes: Optional[str] = None,
-        confidence_threshold: float = 0.35,
+        confidence_threshold: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Executes the required 7-step decision flow:
@@ -98,6 +100,10 @@ class TriageInferenceService:
         6. Abstain when information/model support is insufficient (never placing patient at back of queue).
         7. Return structured, auditable response.
         """
+        from app.config import get_settings
+        if confidence_threshold is None:
+            confidence_threshold = get_settings().CONFIDENCE_ABSTENTION_THRESHOLD
+
         known_conditions = known_conditions or []
 
         # Step 1 & 2: Independent Safety & Data Quality Checks
@@ -125,6 +131,7 @@ class TriageInferenceService:
             temperature=temperature,
             temperature_unit=temperature_unit,
             spo2=spo2,
+            respiratory_rate=respiratory_rate,
         )
 
         has_blocking_data_error = any(issue.is_blocking for issue in dq_issues)
@@ -141,13 +148,85 @@ class TriageInferenceService:
         model_version = self.metadata.get("model_version", "unavailable") if self.metadata else "unavailable"
         rules_version = SAFETY_RULE_VERSION
 
-        # Step 3: Handle Blocking Data Errors -> Explicit Abstention to Nurse
+        # Collect observed input facts (strictly objective observations)
+        observed_facts = [
+            f"Demographics: {age}yo {gender}",
+            f"Presenting Complaint: \"{chief_complaint}\"",
+        ]
+        if systolic_bp is not None:
+            observed_facts.append(f"Recorded BP: {systolic_bp}/{diastolic_bp or '-'} mmHg")
+        if pulse_bpm is not None:
+            observed_facts.append(f"Recorded Pulse: {pulse_bpm} bpm")
+        if spo2 is not None:
+            observed_facts.append(f"Recorded SpO2: {spo2}%")
+        if respiratory_rate is not None:
+            observed_facts.append(f"Recorded Respiratory Rate: {respiratory_rate}/min")
+        if temperature is not None:
+            observed_facts.append(f"Recorded Temperature: {temperature}°{temperature_unit}")
+        if known_conditions:
+            observed_facts.append(f"Known Conditions: {', '.join(known_conditions)}")
+        if medications:
+            med_obs_str = ", ".join(medications) if isinstance(medications, list) else str(medications)
+            if med_obs_str:
+                observed_facts.append(f"Reported Medications: {med_obs_str}")
+
+        # Inferred risk indicators from physiological criteria
+        inferred_risks = [alert.rule_name for alert in clinical_alerts]
+
+        # Clinical department determination and reasoning
+        dept_enum, dept_reason, requires_dept_review = determine_department_with_reason(
+            complaint=chief_complaint,
+            age=age,
+            is_emergency=has_critical_clinical_rule,
+            red_flags=RedFlagChecklist(),
+        )
+
+        # Step 3: Handle Critical Clinical Rules & Blocking Data Errors
+        if has_critical_clinical_rule:
+            # SAFETY INVARIANT: Critical emergency rules ALWAYS take absolute precedence!
+            # Clerical vital entry errors must NEVER suppress or downgrade an emergency complaint.
+            explanation = (
+                "🚨 CRITICAL CLINICAL SAFETY OVERRIDE: Severe physiological red flag or acute emergency complaint triggered. "
+                "Emergency resuscitation triage assigned."
+            )
+            if has_blocking_data_error:
+                explanation += " Note: Vital sign data entry errors flagged for concurrent bedside nurse verification."
+
+            return {
+                "triage_level": 1,
+                "triage_level_name": TRIAGE_5_TO_NAME[1],
+                "raw_model_level": 1,
+                "raw_model_name": TRIAGE_5_TO_NAME[1],
+                "override_applied": True,
+                "recommended_department": "Emergency / Casualty",
+                "department_reason": "Emergency clinical safety override: patient routed immediately to emergency resuscitation.",
+                "requires_department_review": False,
+                "detected_red_flags": red_flag_symptoms,
+                "observed_facts": observed_facts,
+                "inferred_risks": inferred_risks,
+                "model_explanation": explanation,
+                "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts] + [i.code for i in dq_issues if i.is_blocking],
+                "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts] + [i.message for i in dq_issues if i.is_blocking],
+                "missing_data_warnings": missing_warnings,
+                "invalid_data_warnings": invalid_warnings,
+                "human_review_required": True,
+                "abstention_status": "SAFETY_OVERRIDE_WITH_DATA_WARNING" if has_blocking_data_error else "SAFETY_OVERRIDE",
+                "model_version": model_version,
+                "rules_version": rules_version,
+                "model_emergency_flag": True,
+                "clinical_disclaimer": "ASSISTIVE DECISION SUPPORT ONLY: Red flag alert overrides lower acuity. An emergency flag does not constitute a confirmed medical diagnosis. Immediate emergency physician evaluation required.",
+            }
+
         if has_blocking_data_error:
             return {
                 "triage_level": 2,  # Priority holding status: never placed at end of queue
                 "triage_level_name": "Cannot assess — send to nurse now.",
-                "recommended_department": "General Medicine",
+                "recommended_department": dept_enum.value,
+                "department_reason": dept_reason,
+                "requires_department_review": True,
                 "detected_red_flags": red_flag_symptoms,
+                "observed_facts": observed_facts,
+                "inferred_risks": inferred_risks,
                 "model_explanation": "Model execution held: Input data contains contradictory or out-of-range measurements requiring immediate nurse verification.",
                 "triggered_safety_rule_ids": [i.code for i in dq_issues if i.is_blocking],
                 "safety_rule_explanations": [i.message for i in dq_issues if i.is_blocking],
@@ -168,8 +247,12 @@ class TriageInferenceService:
             return {
                 "triage_level": fallback_level,
                 "triage_level_name": TRIAGE_3_TO_NAME.get(fallback_level, f"Level {fallback_level}"),
-                "recommended_department": "Emergency / Casualty" if fallback_level == 1 else "General Medicine",
+                "recommended_department": "Emergency / Casualty" if fallback_level == 1 else dept_enum.value,
+                "department_reason": "Emergency clinical safety override" if fallback_level == 1 else dept_reason,
+                "requires_department_review": requires_dept_review,
                 "detected_red_flags": red_flag_symptoms,
+                "observed_facts": observed_facts,
+                "inferred_risks": inferred_risks,
                 "model_explanation": "Model artifacts currently unavailable. Triage assigned via deterministic safety guidelines.",
                 "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts],
                 "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts],
@@ -243,8 +326,12 @@ class TriageInferenceService:
             return {
                 "triage_level": fallback_level,
                 "triage_level_name": f"{fallback_name} (Model Exception)" if has_critical_clinical_rule else "Cannot assess — send to nurse now.",
-                "recommended_department": "Emergency / Casualty" if fallback_level == 1 else "General Medicine",
+                "recommended_department": "Emergency / Casualty" if fallback_level == 1 else dept_enum.value,
+                "department_reason": "Emergency clinical safety override" if fallback_level == 1 else dept_reason,
+                "requires_department_review": True,
                 "detected_red_flags": red_flag_symptoms,
+                "observed_facts": observed_facts,
+                "inferred_risks": inferred_risks,
                 "model_explanation": (
                     f"🚨 CRITICAL OVERRIDE: Emergency rule triggered during model exception ({str(e)}). Immediate emergency casualty triage assigned."
                     if has_critical_clinical_rule
@@ -280,7 +367,11 @@ class TriageInferenceService:
                 "triage_level": 2,
                 "triage_level_name": "Cannot assess — send to nurse now.",
                 "recommended_department": pred_dept,
+                "department_reason": dept_reason,
+                "requires_department_review": True,
                 "detected_red_flags": red_flag_symptoms,
+                "observed_facts": observed_facts,
+                "inferred_risks": inferred_risks,
                 "model_explanation": f"Model prediction confidence ({pred_confidence:.2f}) fell below safe decision threshold ({confidence_threshold}). Explicit abstention triggered: send to nurse now.",
                 "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts],
                 "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts],
@@ -311,6 +402,13 @@ class TriageInferenceService:
 
         triage_name = TRIAGE_5_TO_NAME.get(final_level, f"Level {final_level}")
 
+        final_dept_reason = (
+            "Emergency clinical safety override: patient routed immediately to emergency resuscitation."
+            if final_level == 1
+            else dept_reason
+        )
+        final_dept_review = False if final_level == 1 else requires_dept_review
+
         return {
             "triage_level": final_level,
             "triage_level_name": triage_name,
@@ -318,7 +416,11 @@ class TriageInferenceService:
             "raw_model_name": TRIAGE_5_TO_NAME.get(raw_ml_level, f"Level {raw_ml_level}") if raw_ml_level else None,
             "override_applied": override_applied,
             "recommended_department": pred_dept,
+            "department_reason": final_dept_reason,
+            "requires_department_review": final_dept_review,
             "detected_red_flags": red_flag_symptoms,
+            "observed_facts": observed_facts,
+            "inferred_risks": inferred_risks,
             "model_explanation": explanation,
             "triggered_safety_rule_ids": [a.rule_id for a in clinical_alerts],
             "safety_rule_explanations": [a.clinical_explanation for a in clinical_alerts],

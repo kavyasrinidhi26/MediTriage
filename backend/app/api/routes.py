@@ -75,12 +75,15 @@ from app.schemas import (
     MissingAssessmentInformation,
     AssessmentAuditHistoryItem,
     ExplainableAssessmentResponse,
+    ArrivalLogStatusResponse,
 )
 from app.ml.inference import TriageInferenceService
 from app.ml.train import train_pipeline, DEFAULT_ARTIFACTS_DIR
 from app.simulation import (
     generate_synthetic_arrivals,
     run_comparative_simulation,
+    check_official_arrival_log,
+    load_database_arrivals,
 )
 from app.triage_engine import evaluate_triage
 from app.config import get_settings
@@ -287,7 +290,7 @@ def register_and_queue_patient(
     """Assess patient and push immediately into the active OPD priority queue."""
     assessment = evaluate_triage(request)
     item_id = str(uuid.uuid4())
-    token = generate_token_number()
+    token = generate_token_number(db)
     now = datetime.now(timezone.utc)
 
     queue_item = PatientQueueItem(
@@ -383,7 +386,7 @@ def sync_db_to_queue_storage(db: Session):
                 existing_key = key
             else:
                 for k, item in list(QUEUE_STORAGE.items()):
-                    if item.opd_registration_number == p.patient_id or (p.token_number and item.token_number == p.token_number):
+                    if item.opd_registration_number == p.patient_id:
                         existing_key = k
                         break
 
@@ -408,19 +411,35 @@ def sync_db_to_queue_storage(db: Session):
                 q_item.is_synthetic = is_syn
                 if p.triage_level == 1:
                     q_item.assessment.triage_category = TriageCategory.EMERGENCY
-                    q_item.assessment.urgency_score = p.urgency_score or 9
+                    q_item.assessment.urgency_score = p.urgency_score or 10
+                    q_item.assessment.triage_level = 1
+                    q_item.assessment.triage_level_name = p.triage_level_name or "Level 1 - Resuscitation / Immediate"
                 elif p.triage_level == 2:
                     q_item.assessment.triage_category = TriageCategory.PRIORITY
-                    q_item.assessment.urgency_score = p.urgency_score or 6
-                elif p.triage_level:
+                    q_item.assessment.urgency_score = p.urgency_score or 7
+                    q_item.assessment.triage_level = 2
+                    q_item.assessment.triage_level_name = p.triage_level_name or "Level 2 - Emergent"
+                elif p.triage_level == 3:
+                    q_item.assessment.triage_category = TriageCategory.PRIORITY
+                    q_item.assessment.urgency_score = p.urgency_score or 5
+                    q_item.assessment.triage_level = 3
+                    q_item.assessment.triage_level_name = p.triage_level_name or "Level 3 - Urgent"
+                elif p.triage_level == 4:
                     q_item.assessment.triage_category = TriageCategory.ROUTINE
                     q_item.assessment.urgency_score = p.urgency_score or 3
+                    q_item.assessment.triage_level = 4
+                    q_item.assessment.triage_level_name = p.triage_level_name or "Level 4 - Less Urgent"
+                elif p.triage_level == 5:
+                    q_item.assessment.triage_category = TriageCategory.ROUTINE
+                    q_item.assessment.urgency_score = p.urgency_score or 1
+                    q_item.assessment.triage_level = 5
+                    q_item.assessment.triage_level_name = p.triage_level_name or "Level 5 - Non-Urgent"
                 if p.triage_level_name:
                     q_item.assessment.urgency_level = p.triage_level_name
 
                 if existing_key != key:
                     del QUEUE_STORAGE[existing_key]
-                    QUEUE_STORAGE[key] = q_item
+                QUEUE_STORAGE[key] = q_item
                 continue
 
             temp_f = (
@@ -440,10 +459,16 @@ def sync_db_to_queue_storage(db: Session):
 
             if p.triage_level == 1:
                 cat = TriageCategory.EMERGENCY
-                score = p.urgency_score or 9
+                score = p.urgency_score or 10
             elif p.triage_level == 2:
                 cat = TriageCategory.PRIORITY
-                score = p.urgency_score or 6
+                score = p.urgency_score or 7
+            elif p.triage_level == 3:
+                cat = TriageCategory.PRIORITY
+                score = p.urgency_score or 5
+            elif p.triage_level == 5:
+                cat = TriageCategory.ROUTINE
+                score = p.urgency_score or 1
             else:
                 cat = TriageCategory.ROUTINE
                 score = p.urgency_score or 3
@@ -461,16 +486,38 @@ def sync_db_to_queue_storage(db: Session):
                 p.updated_at.replace(tzinfo=timezone.utc) if p.updated_at else p_created
             )
 
+            red_flags_list = []
+            if p.warning_signs:
+                try:
+                    import json
+                    parsed_signs = json.loads(p.warning_signs)
+                    if isinstance(parsed_signs, list):
+                        red_flags_list = parsed_signs
+                except Exception:
+                    pass
+
+            target_wait = (
+                0 if p.triage_level == 1 else (
+                    15 if p.triage_level == 2 else (
+                        30 if p.triage_level == 3 else (
+                            60 if p.triage_level == 4 else 120
+                        )
+                    )
+                )
+            )
+
             assessment = TriageAssessmentResult(
                 triage_category=cat,
                 urgency_level=p.triage_level_name or ("Pending Assessment" if not p.triage_level else f"Level {p.triage_level}"),
+                triage_level=p.triage_level,
+                triage_level_name=p.triage_level_name,
                 urgency_score=score,
                 recommended_department=dept,
-                red_flags_identified=[],
+                red_flags_identified=red_flags_list,
                 vital_abnormalities=[],
                 clinical_rationale=[f"Assessed acuity: {p.triage_level_name or 'Standard'}"],
                 recommended_action="Triage Queue Evaluation",
-                max_recommended_wait_minutes=15 if cat == TriageCategory.EMERGENCY else (60 if cat == TriageCategory.PRIORITY else 120),
+                max_recommended_wait_minutes=target_wait,
                 assessment_timestamp=p_created,
             )
 
@@ -585,7 +632,7 @@ def update_queue_status(
     target_key = patient_id if patient_id in QUEUE_STORAGE else None
     if not target_key:
         for k, v in QUEUE_STORAGE.items():
-            if v.opd_registration_number == patient_id or v.token_number == patient_id:
+            if v.id == patient_id or v.opd_registration_number == patient_id or v.token_number == patient_id:
                 target_key = k
                 break
 
@@ -596,6 +643,15 @@ def update_queue_status(
         )
 
     item = QUEUE_STORAGE[target_key]
+    
+    # Active Level 1 Emergency dismissal protection: Require documented clinical review notes
+    if item.assessment.triage_category == TriageCategory.EMERGENCY and payload.status == QueueStatus.COMPLETED:
+        if not payload.notes or len(payload.notes.strip()) < 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active Level 1 Emergency cannot be dismissed or completed without documented clinical review notes (minimum 5 characters).",
+            )
+
     item.status = payload.status
     item.updated_at = datetime.now(timezone.utc)
     if payload.doctor_room:
@@ -603,6 +659,13 @@ def update_queue_status(
             item.clinical_notes += f" | Room: {payload.doctor_room}"
         else:
             item.clinical_notes = f"Room: {payload.doctor_room}"
+    staff_identifier = current_staff.name or current_staff.email or current_staff.uid or "Staff"
+    if payload.notes:
+        note_str = f"Clinical Note ({staff_identifier}): {payload.notes.strip()}"
+        if item.clinical_notes:
+            item.clinical_notes += f" | {note_str}"
+        else:
+            item.clinical_notes = note_str
 
     # Also synchronize status in SQLite PatientModel if record exists
     record = (
@@ -613,6 +676,10 @@ def update_queue_status(
     if record:
         status_str = payload.status.value if hasattr(payload.status, "value") else str(payload.status)
         record.status = status_str
+        if payload.notes:
+            record.review_notes = (record.review_notes + " | " + payload.notes.strip()) if record.review_notes else payload.notes.strip()
+            record.reviewed_by = staff_identifier
+            record.reviewed_at = utc_now()
         record.updated_at = utc_now()
         db.commit()
 
@@ -626,12 +693,24 @@ def remove_from_queue(
     db: Session = Depends(get_db),
 ):
     """Deletes or discharges a patient from the queue."""
-    if patient_id not in QUEUE_STORAGE:
+    target_key = patient_id if patient_id in QUEUE_STORAGE else None
+    if not target_key:
+        for k, v in QUEUE_STORAGE.items():
+            if v.id == patient_id or v.opd_registration_number == patient_id or v.token_number == patient_id:
+                target_key = k
+                break
+    if not target_key:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Patient with ID '{patient_id}' not found."
         )
-    del QUEUE_STORAGE[patient_id]
+    item = QUEUE_STORAGE[target_key]
+    if item.assessment.triage_category == TriageCategory.EMERGENCY and item.status != QueueStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active Level 1 Emergency cannot be deleted without completing clinical handover or documenting review notes.",
+        )
+    del QUEUE_STORAGE[target_key]
     record = (
         db.query(PatientModel)
         .filter((PatientModel.id == patient_id) | (PatientModel.patient_id == patient_id))
@@ -1205,6 +1284,13 @@ def create_assessment(
             detail="Patient assessment requires at minimum: age, gender, and chief_complaint (or a valid registered patient_id).",
         )
 
+    medications = payload.medications
+    if not medications and record and hasattr(record, "medications"):
+        try:
+            medications = json.loads(record.medications) if record.medications else []
+        except Exception:
+            medications = [record.medications]
+
     # Execute inference service with approved decision flow
     result = inference_service.assess(
         age=age,
@@ -1212,6 +1298,7 @@ def create_assessment(
         chief_complaint=chief_complaint,
         complaint_language=complaint_language,
         known_conditions=known_conditions,
+        medications=medications,
         systolic_bp=systolic_bp,
         diastolic_bp=diastolic_bp,
         pulse_bpm=pulse_bpm,
@@ -2024,11 +2111,19 @@ def get_model_evaluation(artifacts_dir: Optional[str] = None) -> Dict[str, Any]:
         "splits": splits,
         "evaluation_metrics": eval_metrics,
         "emergency_metrics": {
-            "emergency_recall": triage_test.get("emergency_recall_sensitivity", 0.0),
+            "emergency_recall": triage_test.get("emergency_recall_sensitivity"),
             "emergency_precision": emerg_prec,
             "emergency_false_negatives": triage_test.get("emergency_false_negatives", 0),
             "emergency_cases_total": triage_test.get("emergency_cases_total", 0),
+            "emergency_recall_numerator": triage_test.get("emergency_recall_numerator", 0),
+            "emergency_recall_denominator": triage_test.get("emergency_recall_denominator", 0),
+            "emergency_recall_display": triage_test.get("emergency_recall_display", "0/0 (N/A)"),
+            "is_emergency_set_empty": triage_test.get("is_emergency_set_empty", False),
         },
+        "asymmetric_clinical_cost": triage_test.get("asymmetric_clinical_cost", {}),
+        "abstention_metrics": triage_test.get("abstention_metrics", {}),
+        "split_integrity": metadata.get("split_integrity", {}),
+        "dataset_distribution": metadata.get("dataset_distribution", {}),
         "official_weighted_score": official_score,
         "clinical_safety_notice": (
             "CRITICAL CLINICAL SAFETY PRINCIPLE: High overall accuracy (e.g. 96%) can dangerously "
@@ -2079,6 +2174,59 @@ def run_model_evaluation_job(
 # ============================================================================
 
 @router.get(
+    "/simulation/arrival-log-status",
+    response_model=ArrivalLogStatusResponse,
+    summary="Check availability of official patient arrival log and report limitations",
+)
+def get_arrival_log_status(
+    db: Session = Depends(get_db),
+) -> ArrivalLogStatusResponse:
+    """
+    Checks for the presence of the provided patient arrival log.
+    If the official log is missing, reports that limitation explicitly.
+    Also returns the count of intake records available in the system database.
+    """
+    official_check = check_official_arrival_log()
+    db_count = db.query(PatientModel).count()
+    return ArrivalLogStatusResponse(
+        official_log_available=official_check["official_log_available"],
+        official_log_filename=official_check["file_path"],
+        limitation_statement=(
+            official_check["limitation_statement"]
+            if not official_check["official_log_available"]
+            else "Official arrival log detected and ready for evaluation."
+        ),
+        database_records_count=db_count,
+        synthetic_demo_available=True,
+    )
+
+
+@router.get(
+    "/simulation/database-arrivals",
+    summary="Extract patient arrival records from system SQLite database for simulation",
+)
+def get_database_arrivals(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> List[Dict[str, Any]]:
+    """Returns patient arrival sequence extracted from the hospital SQLite intake records."""
+    arrivals = load_database_arrivals(limit=limit)
+    return [
+        {
+            "patient_id": a.patient_id,
+            "arrival_minute": a.arrival_minute,
+            "arrival_time_str": a.arrival_time_str,
+            "chief_complaint": a.chief_complaint,
+            "triage_level": a.triage_level,
+            "urgency_category": a.urgency_category,
+            "service_time_minutes": a.service_time_minutes,
+            "target_wait_minutes": a.target_wait_minutes,
+            "is_escalated": a.is_escalated,
+        }
+        for a in arrivals
+    ]
+
+
+@router.get(
     "/simulation/demo-arrivals",
     summary="Fetch reproducible demonstration patient arrival log for queue simulation",
 )
@@ -2113,10 +2261,20 @@ def run_simulation(
 ) -> Dict[str, Any]:
     """
     Executes discrete-event queue simulation comparing baseline FCFS against Triage-assisted policy.
-    Uses identical arrival sequence and service times for fair, reproducible comparison.
+    Uses identical arrival sequence, service times, and staffing assumptions for fair, reproducible comparison.
     """
     try:
         n_pts = payload.num_patients if payload.num_patients is not None else payload.n_patients
+        ds_source = payload.dataset_source or ("custom" if payload.custom_arrivals else "synthetic")
+
+        if ds_source == "official":
+            official_check = check_official_arrival_log()
+            if not official_check["official_log_available"]:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=official_check["limitation_statement"],
+                )
+
         result = run_comparative_simulation(
             n_patients=n_pts,
             num_doctors=payload.num_doctors,
@@ -2129,8 +2287,18 @@ def run_simulation(
             scenario_duration_minutes=payload.scenario_duration_minutes or 240,
             avg_service_duration=payload.avg_service_duration,
             custom_arrivals=payload.custom_arrivals,
+            dataset_source=ds_source,
+            doctor_break_minutes=payload.doctor_break_minutes or 0,
+            doctor_break_interval_minutes=payload.doctor_break_interval_minutes or 240,
         )
         return result
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve),
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,7 +1,7 @@
 {
   "model_version": "2026.1-triage-ml-v1",
   "schema_version": "2026.1-schema-spec-v1",
-  "created_at": "2026-10-13T16:50:08.244489+00:00",
+  "created_at": "2026-10-14T12:38:55.020379+00:00",
   "random_seed": 99,
   "is_synthetic_training": true,
   "data_source": "Synthetic training fixture (60 samples, seed 99)",
@@ -13,6 +13,40 @@
     "training": 36,
     "validation": 12,
     "test": 12
+  },
+  "split_integrity": {
+    "train_test_id_overlap": 0,
+    "train_val_id_overlap": 0,
+    "val_test_id_overlap": 0,
+    "leakage_safeguard_verified": true
+  },
+  "dataset_distribution": {
+    "total_samples": 60,
+    "triage_class_counts": {
+      "2": 23,
+      "3": 15,
+      "4": 12,
+      "5": 9,
+      "1": 1
+    },
+    "train_class_counts": {
+      "2": 14,
+      "3": 9,
+      "5": 7,
+      "4": 5,
+      "1": 1
+    },
+    "val_class_counts": {
+      "3": 4,
+      "2": 4,
+      "4": 2,
+      "5": 2
+    },
+    "test_class_counts": {
+      "4": 5,
+      "2": 5,
+      "3": 2
+    }
   },
   "triage_classifier_type": "HistGradientBoostingClassifier",
   "triage_label_mapping": {
@@ -52,32 +86,43 @@
     "training": {
       "sample_count": 36,
       "triage": {
-        "accuracy": 0.4722,
-        "precision_macro": 0.0944,
+        "accuracy": 0.3889,
+        "precision_macro": 0.0778,
         "recall_macro": 0.2,
-        "f1_macro": 0.1283,
-        "precision_weighted": 0.223,
-        "recall_weighted": 0.4722,
-        "f1_weighted": 0.3029,
+        "f1_macro": 0.112,
+        "precision_weighted": 0.1512,
+        "recall_weighted": 0.3889,
+        "f1_weighted": 0.2178,
         "emergency_level_analyzed": 1,
-        "emergency_cases_total": 2,
+        "emergency_cases_total": 1,
         "emergency_recall_sensitivity": 0.0,
+        "emergency_recall_numerator": 0,
+        "emergency_recall_denominator": 1,
+        "emergency_recall_display": "0/1 (0.0%)",
+        "is_emergency_set_empty": false,
         "emergency_precision": 0.0,
-        "emergency_false_negatives": 2,
+        "emergency_false_negatives": 1,
         "asymmetric_clinical_cost": {
-          "total_cost": 57.0,
-          "mean_cost_per_patient": 1.5833,
-          "under_triage_count": 2,
-          "under_triage_cost": 40.0,
+          "total_cost": 41.0,
+          "total_asymmetric_clinical_loss": 41.0,
+          "mean_cost_per_patient": 1.1389,
+          "mean_clinical_loss_per_patient": 1.1389,
+          "under_triage_count": 1,
+          "emergency_under_triage_count": 1,
+          "under_triage_cost": 20.0,
+          "emergency_under_triage_cost": 20.0,
           "over_triage_count": 0,
           "over_triage_cost": 0.0,
-          "standard_error_count": 17,
+          "standard_error_count": 21,
+          "non_emergency_misclassifications_count": 21,
           "under_triage_penalty_multiplier": 20.0,
-          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+          "under_triage_penalty_weight": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+          "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
         },
         "official_weighted_score": {
-          "score": 0.0,
-          "raw_weighted_score": 0.1329,
+          "score": 0.0114,
+          "raw_weighted_score": 0.1114,
           "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
           "weights": {
             "emergency_recall": 0.5,
@@ -85,7 +130,22 @@
             "accuracy": 0.2,
             "emergency_fn_penalty_per_case": 0.1
           },
-          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+          "emergency_set_evaluated": true,
+          "emergency_recall_measurable": true,
+          "description": "Clinical evaluation score prioritizing zero emergency false negatives."
+        },
+        "abstention_metrics": {
+          "total_cases": 36,
+          "abstention_count": 0,
+          "abstention_rate": 0.0,
+          "abstention_percentage": "0.0%",
+          "abstention_message": "Cannot assess \u2014 send to nurse now.",
+          "emergency_cases_total": 1,
+          "emergencies_in_abstained_count": 0,
+          "autonomous_emergency_recall": 0.0,
+          "workflow_safety_rate_with_nurse_review": 0.0,
+          "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+          "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
         },
         "labels": [
           1,
@@ -95,222 +155,6 @@
           5
         ],
         "confusion_matrix": [
-          [
-            0,
-            2,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            17,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            7,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            3,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            7,
-            0,
-            0,
-            0
-          ]
-        ],
-        "per_class_metrics": {
-          "1": {
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1-score": 0.0,
-            "support": 2
-          },
-          "2": {
-            "precision": 0.4722,
-            "recall": 1.0,
-            "f1-score": 0.6415,
-            "support": 17
-          },
-          "3": {
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1-score": 0.0,
-            "support": 7
-          },
-          "4": {
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1-score": 0.0,
-            "support": 3
-          },
-          "5": {
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1-score": 0.0,
-            "support": 7
-          }
-        }
-      },
-      "department": {
-        "accuracy": 0.3611,
-        "f1_macro": 0.0758,
-        "f1_weighted": 0.1916,
-        "departments": [
-          "Cardiology",
-          "Dermatology",
-          "General Medicine",
-          "Obstetrics & Gynecology",
-          "Orthopedics",
-          "Pediatrics",
-          "Pulmonology"
-        ],
-        "confusion_matrix": [
-          [
-            0,
-            0,
-            2,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            3,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            13,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            2,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            4,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            6,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            6,
-            0,
-            0,
-            0,
-            0
-          ]
-        ]
-      }
-    },
-    "validation": {
-      "sample_count": 12,
-      "triage": {
-        "accuracy": 0.5,
-        "precision_macro": 0.1,
-        "recall_macro": 0.2,
-        "f1_macro": 0.1333,
-        "precision_weighted": 0.25,
-        "recall_weighted": 0.5,
-        "f1_weighted": 0.3333,
-        "emergency_level_analyzed": 1,
-        "emergency_cases_total": 0,
-        "emergency_recall_sensitivity": 1.0,
-        "emergency_precision": 1.0,
-        "emergency_false_negatives": 0,
-        "asymmetric_clinical_cost": {
-          "total_cost": 6.0,
-          "mean_cost_per_patient": 0.5,
-          "under_triage_count": 0,
-          "under_triage_cost": 0.0,
-          "over_triage_count": 0,
-          "over_triage_cost": 0.0,
-          "standard_error_count": 6,
-          "under_triage_penalty_multiplier": 20.0,
-          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
-        },
-        "official_weighted_score": {
-          "score": 0.64,
-          "raw_weighted_score": 0.64,
-          "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
-          "weights": {
-            "emergency_recall": 0.5,
-            "macro_f1": 0.3,
-            "accuracy": 0.2,
-            "emergency_fn_penalty_per_case": 0.1
-          },
-          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
-        },
-        "labels": [
-          1,
-          2,
-          3,
-          4,
-          5
-        ],
-        "confusion_matrix": [
-          [
-            0,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            6,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            3,
-            0,
-            0,
-            0
-          ],
           [
             0,
             1,
@@ -320,7 +164,28 @@
           ],
           [
             0,
-            2,
+            14,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            9,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            7,
             0,
             0,
             0
@@ -331,38 +196,38 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 0
+            "support": 1
           },
           "2": {
-            "precision": 0.5,
+            "precision": 0.3889,
             "recall": 1.0,
-            "f1-score": 0.6667,
-            "support": 6
+            "f1-score": 0.56,
+            "support": 14
           },
           "3": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 3
+            "support": 9
           },
           "4": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 1
+            "support": 5
           },
           "5": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 2
+            "support": 7
           }
         }
       },
       "department": {
-        "accuracy": 0.4167,
-        "f1_macro": 0.084,
-        "f1_weighted": 0.2451,
+        "accuracy": 0.3889,
+        "f1_macro": 0.08,
+        "f1_weighted": 0.2178,
         "departments": [
           "Cardiology",
           "Dermatology",
@@ -376,16 +241,7 @@
           [
             0,
             0,
-            2,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
+            5,
             0,
             0,
             0,
@@ -403,7 +259,7 @@
           [
             0,
             0,
-            2,
+            14,
             0,
             0,
             0,
@@ -412,7 +268,7 @@
           [
             0,
             0,
-            1,
+            6,
             0,
             0,
             0,
@@ -430,7 +286,16 @@
           [
             0,
             0,
-            2,
+            3,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            3,
             0,
             0,
             0,
@@ -439,7 +304,7 @@
         ]
       }
     },
-    "test": {
+    "validation": {
       "sample_count": 12,
       "triage": {
         "accuracy": 0.3333,
@@ -451,31 +316,55 @@
         "f1_weighted": 0.1667,
         "emergency_level_analyzed": 1,
         "emergency_cases_total": 0,
-        "emergency_recall_sensitivity": 1.0,
-        "emergency_precision": 1.0,
+        "emergency_recall_sensitivity": null,
+        "emergency_recall_numerator": 0,
+        "emergency_recall_denominator": 0,
+        "emergency_recall_display": "N/A (No emergency cases in set)",
+        "is_emergency_set_empty": true,
+        "emergency_precision": null,
         "emergency_false_negatives": 0,
         "asymmetric_clinical_cost": {
           "total_cost": 8.0,
+          "total_asymmetric_clinical_loss": 8.0,
           "mean_cost_per_patient": 0.6667,
+          "mean_clinical_loss_per_patient": 0.6667,
           "under_triage_count": 0,
+          "emergency_under_triage_count": 0,
           "under_triage_cost": 0.0,
+          "emergency_under_triage_cost": 0.0,
           "over_triage_count": 0,
           "over_triage_cost": 0.0,
           "standard_error_count": 8,
+          "non_emergency_misclassifications_count": 8,
           "under_triage_penalty_multiplier": 20.0,
-          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+          "under_triage_penalty_weight": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+          "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
         },
         "official_weighted_score": {
-          "score": 0.5967,
-          "raw_weighted_score": 0.5967,
-          "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+          "score": 0.1933,
+          "raw_weighted_score": 0.1933,
+          "formula": "0.60 * Macro_F1 + 0.40 * Accuracy (Emergency recall unmeasurable: 0 emergency cases in set)",
           "weights": {
-            "emergency_recall": 0.5,
-            "macro_f1": 0.3,
-            "accuracy": 0.2,
-            "emergency_fn_penalty_per_case": 0.1
+            "macro_f1": 0.6,
+            "accuracy": 0.4
           },
-          "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+          "emergency_set_evaluated": false,
+          "emergency_recall_measurable": false,
+          "description": "Provisional evaluation score with unmeasurable emergency recall due to zero emergency cases in evaluation split."
+        },
+        "abstention_metrics": {
+          "total_cases": 12,
+          "abstention_count": 0,
+          "abstention_rate": 0.0,
+          "abstention_percentage": "0.0%",
+          "abstention_message": "Cannot assess \u2014 send to nurse now.",
+          "emergency_cases_total": 0,
+          "emergencies_in_abstained_count": 0,
+          "autonomous_emergency_recall": null,
+          "workflow_safety_rate_with_nurse_review": null,
+          "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+          "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
         },
         "labels": [
           1,
@@ -508,14 +397,14 @@
           ],
           [
             0,
-            0,
+            2,
             0,
             0,
             0
           ],
           [
             0,
-            4,
+            2,
             0,
             0,
             0
@@ -544,13 +433,232 @@
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 0
+            "support": 2
           },
           "5": {
             "precision": 0.0,
             "recall": 0.0,
             "f1-score": 0.0,
-            "support": 4
+            "support": 2
+          }
+        }
+      },
+      "department": {
+        "accuracy": 0.3333,
+        "f1_macro": 0.0714,
+        "f1_weighted": 0.1667,
+        "departments": [
+          "Cardiology",
+          "Dermatology",
+          "General Medicine",
+          "Obstetrics & Gynecology",
+          "Orthopedics",
+          "Pediatrics",
+          "Pulmonology"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "test": {
+      "sample_count": 12,
+      "triage": {
+        "accuracy": 0.4167,
+        "precision_macro": 0.0833,
+        "recall_macro": 0.2,
+        "f1_macro": 0.1176,
+        "precision_weighted": 0.1736,
+        "recall_weighted": 0.4167,
+        "f1_weighted": 0.2451,
+        "emergency_level_analyzed": 1,
+        "emergency_cases_total": 0,
+        "emergency_recall_sensitivity": null,
+        "emergency_recall_numerator": 0,
+        "emergency_recall_denominator": 0,
+        "emergency_recall_display": "N/A (No emergency cases in set)",
+        "is_emergency_set_empty": true,
+        "emergency_precision": null,
+        "emergency_false_negatives": 0,
+        "asymmetric_clinical_cost": {
+          "total_cost": 7.0,
+          "total_asymmetric_clinical_loss": 7.0,
+          "mean_cost_per_patient": 0.5833,
+          "mean_clinical_loss_per_patient": 0.5833,
+          "under_triage_count": 0,
+          "emergency_under_triage_count": 0,
+          "under_triage_cost": 0.0,
+          "emergency_under_triage_cost": 0.0,
+          "over_triage_count": 0,
+          "over_triage_cost": 0.0,
+          "standard_error_count": 7,
+          "non_emergency_misclassifications_count": 7,
+          "under_triage_penalty_multiplier": 20.0,
+          "under_triage_penalty_weight": 20.0,
+          "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+          "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
+        },
+        "official_weighted_score": {
+          "score": 0.2373,
+          "raw_weighted_score": 0.2373,
+          "formula": "0.60 * Macro_F1 + 0.40 * Accuracy (Emergency recall unmeasurable: 0 emergency cases in set)",
+          "weights": {
+            "macro_f1": 0.6,
+            "accuracy": 0.4
+          },
+          "emergency_set_evaluated": false,
+          "emergency_recall_measurable": false,
+          "description": "Provisional evaluation score with unmeasurable emergency recall due to zero emergency cases in evaluation split."
+        },
+        "abstention_metrics": {
+          "total_cases": 12,
+          "abstention_count": 0,
+          "abstention_rate": 0.0,
+          "abstention_percentage": "0.0%",
+          "abstention_message": "Cannot assess \u2014 send to nurse now.",
+          "emergency_cases_total": 0,
+          "emergencies_in_abstained_count": 0,
+          "autonomous_emergency_recall": null,
+          "workflow_safety_rate_with_nurse_review": null,
+          "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+          "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
+        },
+        "labels": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            5,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "per_class_metrics": {
+          "1": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0
+          },
+          "2": {
+            "precision": 0.4167,
+            "recall": 1.0,
+            "f1-score": 0.5882,
+            "support": 5
+          },
+          "3": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2
+          },
+          "4": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 5
+          },
+          "5": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0
           }
         }
       },
@@ -571,6 +679,15 @@
           [
             0,
             0,
+            1,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
             0,
             0,
             0,
@@ -581,24 +698,6 @@
             0,
             0,
             3,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            3,
-            0,
-            0,
-            0,
-            0
-          ],
-          [
-            0,
-            0,
-            0,
             0,
             0,
             0,
@@ -616,7 +715,7 @@
           [
             0,
             0,
-            3,
+            4,
             0,
             0,
             0,
@@ -625,7 +724,16 @@
           [
             0,
             0,
-            1,
+            2,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
             0,
             0,
             0,
@@ -637,40 +745,64 @@
   },
   "evaluation_metrics": {
     "triage": {
-      "accuracy": 0.3333,
-      "precision_macro": 0.0667,
+      "accuracy": 0.4167,
+      "precision_macro": 0.0833,
       "recall_macro": 0.2,
-      "f1_macro": 0.1,
-      "precision_weighted": 0.1111,
-      "recall_weighted": 0.3333,
-      "f1_weighted": 0.1667,
+      "f1_macro": 0.1176,
+      "precision_weighted": 0.1736,
+      "recall_weighted": 0.4167,
+      "f1_weighted": 0.2451,
       "emergency_level_analyzed": 1,
       "emergency_cases_total": 0,
-      "emergency_recall_sensitivity": 1.0,
-      "emergency_precision": 1.0,
+      "emergency_recall_sensitivity": null,
+      "emergency_recall_numerator": 0,
+      "emergency_recall_denominator": 0,
+      "emergency_recall_display": "N/A (No emergency cases in set)",
+      "is_emergency_set_empty": true,
+      "emergency_precision": null,
       "emergency_false_negatives": 0,
       "asymmetric_clinical_cost": {
-        "total_cost": 8.0,
-        "mean_cost_per_patient": 0.6667,
+        "total_cost": 7.0,
+        "total_asymmetric_clinical_loss": 7.0,
+        "mean_cost_per_patient": 0.5833,
+        "mean_clinical_loss_per_patient": 0.5833,
         "under_triage_count": 0,
+        "emergency_under_triage_count": 0,
         "under_triage_cost": 0.0,
+        "emergency_under_triage_cost": 0.0,
         "over_triage_count": 0,
         "over_triage_cost": 0.0,
-        "standard_error_count": 8,
+        "standard_error_count": 7,
+        "non_emergency_misclassifications_count": 7,
         "under_triage_penalty_multiplier": 20.0,
-        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        "under_triage_penalty_weight": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+        "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
       },
       "official_weighted_score": {
-        "score": 0.5967,
-        "raw_weighted_score": 0.5967,
-        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "score": 0.2373,
+        "raw_weighted_score": 0.2373,
+        "formula": "0.60 * Macro_F1 + 0.40 * Accuracy (Emergency recall unmeasurable: 0 emergency cases in set)",
         "weights": {
-          "emergency_recall": 0.5,
-          "macro_f1": 0.3,
-          "accuracy": 0.2,
-          "emergency_fn_penalty_per_case": 0.1
+          "macro_f1": 0.6,
+          "accuracy": 0.4
         },
-        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        "emergency_set_evaluated": false,
+        "emergency_recall_measurable": false,
+        "description": "Provisional evaluation score with unmeasurable emergency recall due to zero emergency cases in evaluation split."
+      },
+      "abstention_metrics": {
+        "total_cases": 12,
+        "abstention_count": 0,
+        "abstention_rate": 0.0,
+        "abstention_percentage": "0.0%",
+        "abstention_message": "Cannot assess \u2014 send to nurse now.",
+        "emergency_cases_total": 0,
+        "emergencies_in_abstained_count": 0,
+        "autonomous_emergency_recall": null,
+        "workflow_safety_rate_with_nurse_review": null,
+        "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+        "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
       },
       "labels": [
         1,
@@ -689,14 +821,21 @@
         ],
         [
           0,
-          4,
+          5,
           0,
           0,
           0
         ],
         [
           0,
-          4,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
           0,
           0,
           0
@@ -704,13 +843,6 @@
         [
           0,
           0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          4,
           0,
           0,
           0
@@ -724,28 +856,28 @@
           "support": 0
         },
         "2": {
-          "precision": 0.3333,
+          "precision": 0.4167,
           "recall": 1.0,
-          "f1-score": 0.5,
-          "support": 4
+          "f1-score": 0.5882,
+          "support": 5
         },
         "3": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 4
+          "support": 2
         },
         "4": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 0
+          "support": 5
         },
         "5": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 4
+          "support": 0
         }
       }
     },
@@ -766,6 +898,15 @@
         [
           0,
           0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
           0,
           0,
           0,
@@ -776,24 +917,6 @@
           0,
           0,
           3,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          3,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
           0,
           0,
           0,
@@ -811,7 +934,7 @@
         [
           0,
           0,
-          3,
+          4,
           0,
           0,
           0,
@@ -820,7 +943,16 @@
         [
           0,
           0,
-          1,
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
           0,
           0,
           0,
@@ -829,32 +961,43 @@
       ]
     },
     "train": {
-      "accuracy": 0.4722,
-      "precision_macro": 0.0944,
+      "accuracy": 0.3889,
+      "precision_macro": 0.0778,
       "recall_macro": 0.2,
-      "f1_macro": 0.1283,
-      "precision_weighted": 0.223,
-      "recall_weighted": 0.4722,
-      "f1_weighted": 0.3029,
+      "f1_macro": 0.112,
+      "precision_weighted": 0.1512,
+      "recall_weighted": 0.3889,
+      "f1_weighted": 0.2178,
       "emergency_level_analyzed": 1,
-      "emergency_cases_total": 2,
+      "emergency_cases_total": 1,
       "emergency_recall_sensitivity": 0.0,
+      "emergency_recall_numerator": 0,
+      "emergency_recall_denominator": 1,
+      "emergency_recall_display": "0/1 (0.0%)",
+      "is_emergency_set_empty": false,
       "emergency_precision": 0.0,
-      "emergency_false_negatives": 2,
+      "emergency_false_negatives": 1,
       "asymmetric_clinical_cost": {
-        "total_cost": 57.0,
-        "mean_cost_per_patient": 1.5833,
-        "under_triage_count": 2,
-        "under_triage_cost": 40.0,
+        "total_cost": 41.0,
+        "total_asymmetric_clinical_loss": 41.0,
+        "mean_cost_per_patient": 1.1389,
+        "mean_clinical_loss_per_patient": 1.1389,
+        "under_triage_count": 1,
+        "emergency_under_triage_count": 1,
+        "under_triage_cost": 20.0,
+        "emergency_under_triage_cost": 20.0,
         "over_triage_count": 0,
         "over_triage_cost": 0.0,
-        "standard_error_count": 17,
+        "standard_error_count": 21,
+        "non_emergency_misclassifications_count": 21,
         "under_triage_penalty_multiplier": 20.0,
-        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        "under_triage_penalty_weight": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+        "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
       },
       "official_weighted_score": {
-        "score": 0.0,
-        "raw_weighted_score": 0.1329,
+        "score": 0.0114,
+        "raw_weighted_score": 0.1114,
         "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
         "weights": {
           "emergency_recall": 0.5,
@@ -862,7 +1005,22 @@
           "accuracy": 0.2,
           "emergency_fn_penalty_per_case": 0.1
         },
-        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        "emergency_set_evaluated": true,
+        "emergency_recall_measurable": true,
+        "description": "Clinical evaluation score prioritizing zero emergency false negatives."
+      },
+      "abstention_metrics": {
+        "total_cases": 36,
+        "abstention_count": 0,
+        "abstention_rate": 0.0,
+        "abstention_percentage": "0.0%",
+        "abstention_message": "Cannot assess \u2014 send to nurse now.",
+        "emergency_cases_total": 1,
+        "emergencies_in_abstained_count": 0,
+        "autonomous_emergency_recall": 0.0,
+        "workflow_safety_rate_with_nurse_review": 0.0,
+        "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+        "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
       },
       "labels": [
         1,
@@ -874,28 +1032,28 @@
       "confusion_matrix": [
         [
           0,
-          2,
+          1,
           0,
           0,
           0
         ],
         [
           0,
-          17,
+          14,
           0,
           0,
           0
         ],
         [
           0,
-          7,
+          9,
           0,
           0,
           0
         ],
         [
           0,
-          3,
+          5,
           0,
           0,
           0
@@ -913,25 +1071,25 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 2
+          "support": 1
         },
         "2": {
-          "precision": 0.4722,
+          "precision": 0.3889,
           "recall": 1.0,
-          "f1-score": 0.6415,
-          "support": 17
+          "f1-score": 0.56,
+          "support": 14
         },
         "3": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 7
+          "support": 9
         },
         "4": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 3
+          "support": 5
         },
         "5": {
           "precision": 0.0,
@@ -942,40 +1100,64 @@
       }
     },
     "validation": {
-      "accuracy": 0.5,
-      "precision_macro": 0.1,
+      "accuracy": 0.3333,
+      "precision_macro": 0.0667,
       "recall_macro": 0.2,
-      "f1_macro": 0.1333,
-      "precision_weighted": 0.25,
-      "recall_weighted": 0.5,
-      "f1_weighted": 0.3333,
+      "f1_macro": 0.1,
+      "precision_weighted": 0.1111,
+      "recall_weighted": 0.3333,
+      "f1_weighted": 0.1667,
       "emergency_level_analyzed": 1,
       "emergency_cases_total": 0,
-      "emergency_recall_sensitivity": 1.0,
-      "emergency_precision": 1.0,
+      "emergency_recall_sensitivity": null,
+      "emergency_recall_numerator": 0,
+      "emergency_recall_denominator": 0,
+      "emergency_recall_display": "N/A (No emergency cases in set)",
+      "is_emergency_set_empty": true,
+      "emergency_precision": null,
       "emergency_false_negatives": 0,
       "asymmetric_clinical_cost": {
-        "total_cost": 6.0,
-        "mean_cost_per_patient": 0.5,
+        "total_cost": 8.0,
+        "total_asymmetric_clinical_loss": 8.0,
+        "mean_cost_per_patient": 0.6667,
+        "mean_clinical_loss_per_patient": 0.6667,
         "under_triage_count": 0,
+        "emergency_under_triage_count": 0,
         "under_triage_cost": 0.0,
+        "emergency_under_triage_cost": 0.0,
         "over_triage_count": 0,
         "over_triage_cost": 0.0,
-        "standard_error_count": 6,
+        "standard_error_count": 8,
+        "non_emergency_misclassifications_count": 8,
         "under_triage_penalty_multiplier": 20.0,
-        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
+        "under_triage_penalty_weight": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+        "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
       },
       "official_weighted_score": {
-        "score": 0.64,
-        "raw_weighted_score": 0.64,
-        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
+        "score": 0.1933,
+        "raw_weighted_score": 0.1933,
+        "formula": "0.60 * Macro_F1 + 0.40 * Accuracy (Emergency recall unmeasurable: 0 emergency cases in set)",
         "weights": {
-          "emergency_recall": 0.5,
-          "macro_f1": 0.3,
-          "accuracy": 0.2,
-          "emergency_fn_penalty_per_case": 0.1
+          "macro_f1": 0.6,
+          "accuracy": 0.4
         },
-        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
+        "emergency_set_evaluated": false,
+        "emergency_recall_measurable": false,
+        "description": "Provisional evaluation score with unmeasurable emergency recall due to zero emergency cases in evaluation split."
+      },
+      "abstention_metrics": {
+        "total_cases": 12,
+        "abstention_count": 0,
+        "abstention_rate": 0.0,
+        "abstention_percentage": "0.0%",
+        "abstention_message": "Cannot assess \u2014 send to nurse now.",
+        "emergency_cases_total": 0,
+        "emergencies_in_abstained_count": 0,
+        "autonomous_emergency_recall": null,
+        "workflow_safety_rate_with_nurse_review": null,
+        "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+        "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
       },
       "labels": [
         1,
@@ -994,21 +1176,14 @@
         ],
         [
           0,
-          6,
+          4,
           0,
           0,
           0
         ],
         [
           0,
-          3,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          1,
+          4,
           0,
           0,
           0
@@ -1019,116 +1194,10 @@
           0,
           0,
           0
-        ]
-      ],
-      "per_class_metrics": {
-        "1": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1-score": 0.0,
-          "support": 0
-        },
-        "2": {
-          "precision": 0.5,
-          "recall": 1.0,
-          "f1-score": 0.6667,
-          "support": 6
-        },
-        "3": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1-score": 0.0,
-          "support": 3
-        },
-        "4": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1-score": 0.0,
-          "support": 1
-        },
-        "5": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1-score": 0.0,
-          "support": 2
-        }
-      }
-    },
-    "test": {
-      "accuracy": 0.3333,
-      "precision_macro": 0.0667,
-      "recall_macro": 0.2,
-      "f1_macro": 0.1,
-      "precision_weighted": 0.1111,
-      "recall_weighted": 0.3333,
-      "f1_weighted": 0.1667,
-      "emergency_level_analyzed": 1,
-      "emergency_cases_total": 0,
-      "emergency_recall_sensitivity": 1.0,
-      "emergency_precision": 1.0,
-      "emergency_false_negatives": 0,
-      "asymmetric_clinical_cost": {
-        "total_cost": 8.0,
-        "mean_cost_per_patient": 0.6667,
-        "under_triage_count": 0,
-        "under_triage_cost": 0.0,
-        "over_triage_count": 0,
-        "over_triage_cost": 0.0,
-        "standard_error_count": 8,
-        "under_triage_penalty_multiplier": 20.0,
-        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)"
-      },
-      "official_weighted_score": {
-        "score": 0.5967,
-        "raw_weighted_score": 0.5967,
-        "formula": "0.50 * Emergency_Recall + 0.30 * Macro_F1 + 0.20 * Accuracy - (0.10 * Emergency_False_Negatives)",
-        "weights": {
-          "emergency_recall": 0.5,
-          "macro_f1": 0.3,
-          "accuracy": 0.2,
-          "emergency_fn_penalty_per_case": 0.1
-        },
-        "description": "Official clinical evaluation score prioritizing zero emergency false negatives."
-      },
-      "labels": [
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
-      "confusion_matrix": [
-        [
-          0,
-          0,
-          0,
-          0,
-          0
         ],
         [
           0,
-          4,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          4,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          4,
+          2,
           0,
           0,
           0
@@ -1157,13 +1226,150 @@
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 0
+          "support": 2
         },
         "5": {
           "precision": 0.0,
           "recall": 0.0,
           "f1-score": 0.0,
-          "support": 4
+          "support": 2
+        }
+      }
+    },
+    "test": {
+      "accuracy": 0.4167,
+      "precision_macro": 0.0833,
+      "recall_macro": 0.2,
+      "f1_macro": 0.1176,
+      "precision_weighted": 0.1736,
+      "recall_weighted": 0.4167,
+      "f1_weighted": 0.2451,
+      "emergency_level_analyzed": 1,
+      "emergency_cases_total": 0,
+      "emergency_recall_sensitivity": null,
+      "emergency_recall_numerator": 0,
+      "emergency_recall_denominator": 0,
+      "emergency_recall_display": "N/A (No emergency cases in set)",
+      "is_emergency_set_empty": true,
+      "emergency_precision": null,
+      "emergency_false_negatives": 0,
+      "asymmetric_clinical_cost": {
+        "total_cost": 7.0,
+        "total_asymmetric_clinical_loss": 7.0,
+        "mean_cost_per_patient": 0.5833,
+        "mean_clinical_loss_per_patient": 0.5833,
+        "under_triage_count": 0,
+        "emergency_under_triage_count": 0,
+        "under_triage_cost": 0.0,
+        "emergency_under_triage_cost": 0.0,
+        "over_triage_count": 0,
+        "over_triage_cost": 0.0,
+        "standard_error_count": 7,
+        "non_emergency_misclassifications_count": 7,
+        "under_triage_penalty_multiplier": 20.0,
+        "under_triage_penalty_weight": 20.0,
+        "formula": "Cost = 20 * (Emergency FN) + 1 * (Emergency FP) + 1 * (Non-emergency error)",
+        "evaluator_dependency_status": "PROVISIONAL_SPECIFICATION_NO_EXTERNAL_EVALUATOR_SUPPLIED"
+      },
+      "official_weighted_score": {
+        "score": 0.2373,
+        "raw_weighted_score": 0.2373,
+        "formula": "0.60 * Macro_F1 + 0.40 * Accuracy (Emergency recall unmeasurable: 0 emergency cases in set)",
+        "weights": {
+          "macro_f1": 0.6,
+          "accuracy": 0.4
+        },
+        "emergency_set_evaluated": false,
+        "emergency_recall_measurable": false,
+        "description": "Provisional evaluation score with unmeasurable emergency recall due to zero emergency cases in evaluation split."
+      },
+      "abstention_metrics": {
+        "total_cases": 12,
+        "abstention_count": 0,
+        "abstention_rate": 0.0,
+        "abstention_percentage": "0.0%",
+        "abstention_message": "Cannot assess \u2014 send to nurse now.",
+        "emergency_cases_total": 0,
+        "emergencies_in_abstained_count": 0,
+        "autonomous_emergency_recall": null,
+        "workflow_safety_rate_with_nurse_review": null,
+        "safety_principle": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions.",
+        "abstention_safety_invariant": "Abstentions route safely to immediate bedside nurse review, but are NEVER automatically counted as autonomous Level 1 predictions."
+      },
+      "labels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "per_class_metrics": {
+        "1": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 0
+        },
+        "2": {
+          "precision": 0.4167,
+          "recall": 1.0,
+          "f1-score": 0.5882,
+          "support": 5
+        },
+        "3": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 2
+        },
+        "4": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 5
+        },
+        "5": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 0
         }
       }
     }

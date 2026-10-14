@@ -128,6 +128,17 @@ def train_pipeline(
         stratify=stratify_train,
     )
 
+    # Split integrity check: verify zero train-test ID / index overlap
+    train_ids = set(X_train.index)
+    val_ids = set(X_val.index)
+    test_ids = set(X_test.index)
+    train_test_overlap = len(train_ids.intersection(test_ids))
+    train_val_overlap = len(train_ids.intersection(val_ids))
+    val_test_overlap = len(val_ids.intersection(test_ids))
+    assert train_test_overlap == 0, f"Train and test splits overlap by {train_test_overlap} samples!"
+    assert train_val_overlap == 0, f"Train and validation splits overlap by {train_val_overlap} samples!"
+    assert val_test_overlap == 0, f"Validation and test splits overlap by {val_test_overlap} samples!"
+
     # 4. Preprocessing Fit (Strictly on Train Split ONLY) & Transform
     preprocessor = build_preprocessor()
     X_train_trans = preprocessor.fit_transform(X_train)
@@ -273,6 +284,19 @@ def train_pipeline(
             "training": len(X_train),
             "validation": len(X_val),
             "test": len(X_test),
+        },
+        "split_integrity": {
+            "train_test_id_overlap": train_test_overlap,
+            "train_val_id_overlap": train_val_overlap,
+            "val_test_id_overlap": val_test_overlap,
+            "leakage_safeguard_verified": True,
+        },
+        "dataset_distribution": {
+            "total_samples": len(df),
+            "triage_class_counts": {str(k): int(v) for k, v in y_triage.value_counts().to_dict().items()},
+            "train_class_counts": {str(k): int(v) for k, v in y_train.value_counts().to_dict().items()},
+            "val_class_counts": {str(k): int(v) for k, v in y_val.value_counts().to_dict().items()},
+            "test_class_counts": {str(k): int(v) for k, v in y_test.value_counts().to_dict().items()},
         },
         "triage_classifier_type": triage_model_name,
         "triage_label_mapping": {str(k): int(v) for k, v in triage_to_idx.items()},

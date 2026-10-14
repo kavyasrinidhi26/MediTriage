@@ -18,27 +18,39 @@ from app.ml.schema import (
 SAMPLE_COMPLAINTS = [
     # Cardiology / Level 1-2
     ("Severe crushing retrosternal chest pain radiating to left arm with diaphoresis", "Cardiology", 1, 1),
+    ("Chest feels like a heavy weight pressing down, sweating and dizzy", "Cardiology", 1, 1),
     ("Heavy retrosternal chest tightness and shortness of breath upon minimal exertion", "Cardiology", 2, 1),
     ("Sudden pounding palpitations with near-syncope and dizziness", "Cardiology", 2, 1),
-    ("ఛాతీలో తీవ్రమైన నొప్పి మరియు చెమటలు (Severe retrosternal chest pain)", "Cardiology", 1, 1),
+    ("Gundelo manta mariyu noppi vachindi, aayasam ga undi (Chest burning and pain)", "Cardiology", 1, 1),
+    ("Chhati lo noppi gunde daddilluthondi (Chest pain and pounding heart in transliteration)", "Cardiology", 2, 1),
+    ("ఛాతీలో తీవ్రమైన నొప్పి మరియు చెమటలు (Severe retrosternal chest pain in Telugu script)", "Cardiology", 1, 1),
     ("ఛాతీ పట్టేసినట్లు ఉండటం మరియు దడ (Chest heaviness and palpitations in Telugu)", "Cardiology", 2, 1),
     # Pulmonology / Level 1-2
     ("Acute severe breathlessness, audible wheezing, unable to speak full sentences", "Pulmonology", 1, 1),
+    ("Can't catch my breath, wheezing badly and gasping since night", "Pulmonology", 1, 1),
     ("Chronic cough exacerbation with purulent sputum and moderate dyspnea", "Pulmonology", 3, 0),
     ("Sudden onset pleuritic sharp chest pain with shallow rapid breathing", "Pulmonology", 2, 1),
-    ("శ్వాస తీసుకోవడంలో తీవ్రమైన ఇబ్బంది (Severe breathing difficulty in Telugu)", "Pulmonology", 1, 1),
-    ("తీవ్రమైన దగ్గు మరియు శ్వాసలో పిల్లికూతలు (Severe cough and wheezing in Telugu)", "Pulmonology", 2, 1),
+    ("Swasa teesukolekapothunna, dammu ekkuvaga undi (Unable to breathe, severe wheezing)", "Pulmonology", 1, 1),
+    ("Rendu rojuluga aayasam mariyu daggu (Breathlessness and cough for 2 days)", "Pulmonology", 2, 1),
+    ("శ్వాస తీసుకోవడంలో తీవ్రమైన ఇబ్బంది (Severe breathing difficulty in Telugu script)", "Pulmonology", 1, 1),
+    ("తీవ్రమైన దగ్గు మరియు శ్వాసలో పిల్లికూతలు (Severe cough and wheezing in Telugu script)", "Pulmonology", 2, 1),
     # Emergency / Casualty / Level 1
     ("Sudden onset left-sided facial droop and right arm weakness for 1 hour", "Emergency / Casualty", 1, 1),
     ("Severe motor vehicle trauma with right femoral deformity and bleeding", "Emergency / Casualty", 1, 1),
     ("Sudden collapse, pulselessness requiring immediate cardiopulmonary evaluation", "Emergency / Casualty", 1, 1),
+    ("Spruha tappi padipoyaru, matladatam ledu (Unconscious collapsed patient)", "Emergency / Casualty", 1, 1),
+    ("రక్తస్రావం మరియు తీవ్రమైన గాయం (Heavy bleeding and severe trauma in Telugu script)", "Emergency / Casualty", 1, 1),
     # General Medicine / Level 2-5
     ("High fever 103 F with severe rigors, confusion and severe myalgia for 2 days", "General Medicine", 2, 1),
     ("High grade fever with chills and intermittent generalized body ache for 3 days", "General Medicine", 3, 0),
     ("Persistent dry cough, mild throat irritation and nasal congestion for 4 days", "General Medicine", 4, 0),
     ("Moderate persistent epigastric burning pain radiating to back with vomiting", "General Medicine", 3, 0),
+    ("Stomach burning terribly after eating, vomited twice since morning", "General Medicine", 3, 0),
     ("Mild generalized fatigue, malaise and loss of appetite for 2 weeks", "General Medicine", 5, 0),
     ("Routine monthly blood pressure checkup and chronic medicine prescription refill", "General Medicine", 5, 0),
+    ("Chali jwaram mariyu ontlo noppulu vachayi (Fever with chills and body ache)", "General Medicine", 3, 0),
+    ("Kadupu noppi mariyu vaanthulu avuthunnayi (Stomach ache and vomiting in transliteration)", "General Medicine", 3, 0),
+    ("Thala noppi mariyu neerasam ga undi (Mild routine headache and fatigue)", "General Medicine", 5, 0),
     ("తీవ్రమైన కడుపు నొప్పి మరియు వాంతులు (Severe abdominal pain and vomiting in Telugu)", "General Medicine", 3, 0),
     ("తీవ్రమైన జ్వరం మరియు ఒళ్ళు నొప్పులు (High fever and generalized body ache in Telugu)", "General Medicine", 3, 0),
     ("సాధారణ తలనొప్పి మరియు నీరసం (Mild routine headache and fatigue in Telugu)", "General Medicine", 5, 0),
@@ -46,17 +58,21 @@ SAMPLE_COMPLAINTS = [
     ("3-year-old child with barking seal-like cough, inspiratory stridor at rest, and fever", "Pediatrics", 2, 1),
     ("18-month infant with persistent high fever and decreased oral fluid intake for 2 days", "Pediatrics", 2, 1),
     ("7-year-old child with runny nose, mild throat irritation and normal activity", "Pediatrics", 4, 0),
+    ("Pilladiki baaga jwaram vachindi aahaaram teesukovatledu (Child has high fever and poor intake)", "Pediatrics", 2, 1),
     # Obstetrics & Gynecology / Level 2-3
     ("Active labour contractions occurring every 3 minutes with ruptured amniotic membranes", "Obstetrics & Gynecology", 2, 1),
     ("Severe lower abdominal cramping in early pregnancy with mild vaginal spotting", "Obstetrics & Gynecology", 2, 1),
     ("Routine prenatal third-trimester health checkup and ultrasound review", "Obstetrics & Gynecology", 4, 0),
+    ("Kadupulo noppi mariyu bleeding avuthundi (Pregnancy pain and spotting)", "Obstetrics & Gynecology", 2, 1),
     # Orthopedics / Level 3-4
     ("Twisted right ankle while playing sports, rapid swelling, unable to bear weight", "Orthopedics", 3, 0),
     ("Chronic bilateral knee osteoarthritis pain worse after prolonged standing", "Orthopedics", 4, 0),
+    ("Mokali noppi nadusthunte baaga kastamga undi (Knee pain when walking)", "Orthopedics", 4, 0),
     ("మోకాలి కీళ్ల నొప్పి మరియు నడవడంలో ఇబ్బంది (Knee joint pain and walking difficulty)", "Orthopedics", 4, 0),
     # Dermatology / Level 4-5
     ("Mild intensely itchy rash and erythematous papules on bilateral forearms for 1 week", "Dermatology", 5, 0),
     ("Localized fungal skin patch on right groin with peripheral scaling and itching", "Dermatology", 5, 0),
+    ("Charmam pai doorda mariyu erupugaa undi (Itchy skin rash in Telugu transliteration)", "Dermatology", 5, 0),
 ]
 
 KNOWN_CONDITIONS_POOL = [

@@ -11,6 +11,7 @@ import type {
   QueueFiltersState,
   ModelEvaluationResponse,
   SimulationResponse,
+  ArrivalLogStatusResponse,
   EmergencyCaseItem,
   EmergencyIntakePayload,
   EmergencyStatusUpdatePayload,
@@ -690,11 +691,36 @@ export async function fetchDemoArrivals(
 }
 
 /**
+ * Check official patient arrival log availability and retrieve limitation status
+ */
+export async function fetchArrivalLogStatus(): Promise<ArrivalLogStatusResponse> {
+  const res = await fetch(getApiUrl('/simulation/arrival-log-status'));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch arrival log status (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
+ * Fetch patient arrival sequence extracted from SQLite database
+ */
+export async function fetchDatabaseArrivals(limit: number = 50): Promise<any[]> {
+  const res = await fetch(getApiUrl(`/simulation/database-arrivals?limit=${limit}`));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch database arrivals (${res.status})`);
+  }
+  return await res.json();
+}
+
+/**
  * Run discrete-event queue simulation comparing FCFS vs Triage-assisted policies
  */
 export async function runQueueSimulation(params: {
   num_doctors?: number;
   n_patients?: number;
+  num_patients?: number;
   random_seed?: number;
   service_time_emergency?: number;
   service_time_priority?: number;
@@ -704,6 +730,9 @@ export async function runQueueSimulation(params: {
   scenario_duration_minutes?: number;
   avg_service_duration?: number;
   custom_arrivals?: any[];
+  dataset_source?: 'synthetic' | 'database' | 'custom' | 'official';
+  doctor_break_minutes?: number;
+  doctor_break_interval_minutes?: number;
 }): Promise<SimulationResponse> {
   const res = await fetch(getApiUrl('/simulation/run'), {
     method: 'POST',

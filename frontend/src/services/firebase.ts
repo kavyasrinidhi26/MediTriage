@@ -6,26 +6,26 @@ export interface FirebaseConfigStatus {
   missingKeys: string[];
 }
 
-// Read Vite environment variables safely across browser and test runners
-const globalProc = typeof globalThis !== 'undefined'
-  ? (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process
-  : undefined;
+const readEnv = (val: unknown, key: string): string => {
+  if (typeof val === 'string' && val.trim()) return val.trim();
+  const proc = typeof globalThis !== 'undefined'
+    ? (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process
+    : undefined;
+  if (proc?.env && proc.env[key]) {
+    return String(proc.env[key]).trim();
+  }
+  return '';
+};
 
-const metaEnv: Record<string, string | undefined> =
-  typeof import.meta !== 'undefined' && (import.meta as { env?: Record<string, string | undefined> }).env
-    ? (import.meta as { env: Record<string, string | undefined> }).env
-    : globalProc && globalProc.env
-    ? globalProc.env
-    : {};
-
-const firebaseConfig = {
-  apiKey: metaEnv.VITE_FIREBASE_API_KEY?.trim() || '',
-  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN?.trim() || '',
-  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID?.trim() || '',
-  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET?.trim() || '',
-  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim() || '',
-  appId: metaEnv.VITE_FIREBASE_APP_ID?.trim() || '',
-  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID?.trim() || undefined,
+// Direct property access enables Vite AST compile-time static string replacement during production build
+export const firebaseConfig = {
+  apiKey: readEnv(import.meta.env?.VITE_FIREBASE_API_KEY, 'VITE_FIREBASE_API_KEY'),
+  authDomain: readEnv(import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN, 'VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: readEnv(import.meta.env?.VITE_FIREBASE_PROJECT_ID, 'VITE_FIREBASE_PROJECT_ID'),
+  storageBucket: readEnv(import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET, 'VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: readEnv(import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID, 'VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: readEnv(import.meta.env?.VITE_FIREBASE_APP_ID, 'VITE_FIREBASE_APP_ID'),
+  measurementId: readEnv(import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID, 'VITE_FIREBASE_MEASUREMENT_ID') || undefined,
 };
 
 export const REQUIRED_CONFIG_KEYS = [
@@ -35,18 +35,27 @@ export const REQUIRED_CONFIG_KEYS = [
   'VITE_FIREBASE_APP_ID',
 ] as const;
 
-export function checkFirebaseConfig(): FirebaseConfigStatus {
+export function validateFirebaseConfig(config: {
+  apiKey?: string;
+  authDomain?: string;
+  projectId?: string;
+  appId?: string;
+}): FirebaseConfigStatus {
   const missingKeys: string[] = [];
 
-  if (!firebaseConfig.apiKey) missingKeys.push('VITE_FIREBASE_API_KEY');
-  if (!firebaseConfig.authDomain) missingKeys.push('VITE_FIREBASE_AUTH_DOMAIN');
-  if (!firebaseConfig.projectId) missingKeys.push('VITE_FIREBASE_PROJECT_ID');
-  if (!firebaseConfig.appId) missingKeys.push('VITE_FIREBASE_APP_ID');
+  if (!config.apiKey?.trim()) missingKeys.push('VITE_FIREBASE_API_KEY');
+  if (!config.authDomain?.trim()) missingKeys.push('VITE_FIREBASE_AUTH_DOMAIN');
+  if (!config.projectId?.trim()) missingKeys.push('VITE_FIREBASE_PROJECT_ID');
+  if (!config.appId?.trim()) missingKeys.push('VITE_FIREBASE_APP_ID');
 
   return {
     isConfigured: missingKeys.length === 0,
     missingKeys,
   };
+}
+
+export function checkFirebaseConfig(): FirebaseConfigStatus {
+  return validateFirebaseConfig(firebaseConfig);
 }
 
 const status = checkFirebaseConfig();
